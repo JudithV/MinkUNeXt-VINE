@@ -16,4 +16,5 @@ benchmark_datasets/
 KittiDataset/
 flops_modelo.py
 grafica_inferencia.py
+vscode/
 *.txt
