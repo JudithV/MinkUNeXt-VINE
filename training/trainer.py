@@ -67,7 +67,7 @@ def training_step(global_iter, model, phase, device, optimizer, loss_fn):
                 clustering = clustering[idx]
                 positives_mask = positives_mask[idx][:, idx]
                 negatives_mask = negatives_mask[idx][:, idx]
-            loss_clust = loss_fn_cluster(clustering, positives_mask, negatives_mask)
+            loss_clust, _ = loss_fn_cluster(clustering, positives_mask, negatives_mask)
             lambda_clust = PARAMS.clustering_importance
             loss = loss + lambda_clust * loss_clust
 
@@ -133,7 +133,8 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
             distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
             loss_fn_cluster = BatchHardContrastiveLossWithMasks(pos_margin=PARAMS.pos_margin, neg_margin=PARAMS.neg_margin, distance=distance)
             if clustering.shape[0] > PARAMS.cluster_batch_size:
-                idx = torch.randperm(clustering.shape[0])[:PARAMS.cluster_batch_size]
+                max_id = min(clustering.shape[0], positives_mask.shape[0])
+                idx = torch.randperm(max_id)[:PARAMS.cluster_batch_size]
                 clustering_sub = clustering[idx]
                 positives_mask_sub = positives_mask[idx][:, idx]
                 negatives_mask_sub = negatives_mask[idx][:, idx]
@@ -141,7 +142,8 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
                 clustering_sub = clustering
                 positives_mask_sub = positives_mask
                 negatives_mask_sub = negatives_mask
-            loss_clust = loss_fn_cluster(clustering_sub, positives_mask_sub, negatives_mask_sub)
+            loss_clust, _ = loss_fn_cluster(clustering_sub, positives_mask_sub, negatives_mask_sub)
+
             loss = loss + PARAMS.clustering_importance * loss_clust
         stats = tensors_to_numbers(stats)
         if phase == 'train':
