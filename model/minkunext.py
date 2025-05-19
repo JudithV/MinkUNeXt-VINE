@@ -4,6 +4,7 @@
 # Author: Juan José Cabrera Mora
 
 import torch
+from config import PARAMS
 import torch.nn as nn
 import MinkowskiEngine as ME
 from model.residual_blocks import *
@@ -233,6 +234,9 @@ class MinkUNeXt(ResNetBase):
             kernel_size=1,
             bias=True,
             dimension=D)
+                
+        if PARAMS.clustering_head:
+            self.clustering_head = ClusteringHead(in_features=512)
         
 
         self.relu = ME.MinkowskiReLU(inplace=True)
@@ -291,30 +295,31 @@ class MinkUNeXt(ResNetBase):
         out = self.block7(out)
 
         out = self.final(out)
-        #clustering = ClusteringHead(out)
         descriptor = self.GeM_pool(out)
+        if PARAMS.clustering_head:
+            clustering = self.clustering_head(out)
+            return {'global': descriptor, 'clustering': clustering }
 
-        return {'global': descriptor
-	#, 'clustering': clustering
-	}
+        return {'global': descriptor}
 
 class Mish(nn.Module):
     def __init__(self):
         super(Mish, self).__init__()
 
     def forward(self, x):
-        return x * torch.tanh(F.softplus(x))
+        result = x.F * torch.tanh(F.softplus(x.F))
+        return ME.SparseTensor(result, coordinate_map_key=x.coordinate_map_key, coordinate_manager=x.coordinate_manager)
 
 class ClusteringHead(nn.Module):
-    def __init__(self, in_features, out_features):
+    def __init__(self, in_features):
         super(ClusteringHead, self).__init__()
-        self.conv1 = ME.MinkowskiConvolution(512, 32, kernel_size=3, stride=2, dimension=3)
+        self.conv1 = ME.MinkowskiConvolution(in_features, 32, kernel_size=3, stride=2, dimension=3)
         self.mish1 = Mish()
         
-        self.conv2 = ME.MinkowskiConvolution(1, 32, kernel_size=3, stride=2, dimension=3)
+        self.conv2 = ME.MinkowskiConvolution(32, 32, kernel_size=3, stride=2, dimension=3)
         self.mish2 = Mish()
 
-        self.conv3 = ME.MinkowskiConvolution(1, 3, kernel_size=1, stride=2, dimension=3)
+        self.conv3 = ME.MinkowskiConvolution(32, 3, kernel_size=1, stride=2, dimension=3)
     
     def forward(self, x):
         x = self.conv1(x)

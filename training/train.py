@@ -1,15 +1,11 @@
 import argparse
 import torch
 import torch.nn as nn
-#import PARAMS obejct from config.py in config file
 import sys
 import random
 import os
-# Get the current script's directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Get the parent directory by going one level up
 parent_dir = os.path.dirname(current_dir)
-# Add the parent directory to sys.path
 sys.path.append(parent_dir)
 from config import PARAMS 
 from trainer import *
@@ -18,7 +14,6 @@ from losses.truncated_smoothap import TruncatedSmoothAP
 from losses.contrastive_loss import BatchHardContrastiveLossWithMasks
 import time
 from pytorch_metric_learning.distances import LpDistance
-from early_stopping import EarlyStopping
 import matplotlib.pyplot as plt
 
 def get_datetime():
@@ -122,7 +117,6 @@ def do_train(model):
         
     # Training statistics
     stats = {'train': [], 'eval': []}
-    early_stopping = EarlyStopping(patience=PARAMS.patience, min_delta=PARAMS.min_delta, restore_best_weights=True)
 
     if 'val' in dataloaders:
         # Validation phase
@@ -198,10 +192,6 @@ def do_train(model):
         wandb.log(metrics)
         #if epoch_stats['global']['recall'][1] == 1.0:
             #break
-        # Verificar early stopping
-        """if early_stopping(model, epoch_stats['global']['recall'][1]):
-            print("Early stopping...")
-            break"""
         if scheduler is not None:
             scheduler.step()
 

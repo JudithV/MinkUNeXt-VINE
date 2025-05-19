@@ -49,6 +49,7 @@ class Config():
             self.pos_margin = config.get('pos_margin')
             self.neg_margin = config.get('neg_margin')
             self.normalize_embeddings = config.get('normalize_embeddings')
+            self.clustering_head = config.get('clustering_head')
 
             self.protocol = config.get('protocol')
 

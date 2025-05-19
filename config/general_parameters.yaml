@@ -39,6 +39,7 @@ pos_margin: 0
 neg_margin: 1
 
 normalize_embeddings: False
+clustering_head: True
 
 protocol: 'vmd'
 baseline:
