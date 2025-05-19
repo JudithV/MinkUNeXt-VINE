@@ -5,7 +5,7 @@ patience: 40
 min_delta: 0.001
 
 quantization_size: 0.01  # esfericas: [0.1,2.0,1.875] [m,deg,deg]; cartesianas: 0.01 [m,m,m]
-num_workers: 0
+num_workers: 8
 batch_size: 2048 #128 / --> 2048
 batch_size_limit: 2048  #128 / --> 2048
 batch_expansion_rate: 1.4 # Null
@@ -28,7 +28,7 @@ initial_lr: 0.001
 scheduler: 'MultiStepLR' # MultiStepLR or CosineAnnealingLR or Null
 aug_mode: 1 # 1 if yes
 weight_decay: 0.0001
-loss: 'BatchHardContrastiveLoss' #'TruncatedSmoothAP' or 'BatchHardTripletMarginLoss' or 'BatchHardContrastiveLoss'
+loss: 'TruncatedSmoothAP' #'TruncatedSmoothAP' or 'BatchHardTripletMarginLoss' or 'BatchHardContrastiveLoss'
 
 margin: Null
 tau1: 0.01
@@ -40,6 +40,7 @@ neg_margin: 1
 
 normalize_embeddings: False
 clustering_head: True
+clustering_importance: 0.1
 
 protocol: 'vmd'
 baseline:
