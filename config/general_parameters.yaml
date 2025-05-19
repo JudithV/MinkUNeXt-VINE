@@ -5,7 +5,7 @@ patience: 40
 min_delta: 0.001
 
 quantization_size: 0.01  # esfericas: [0.1,2.0,1.875] [m,deg,deg]; cartesianas: 0.01 [m,m,m]
-num_workers: 8
+num_workers: 0
 batch_size: 2048 #128 / --> 2048
 batch_size_limit: 2048  #128 / --> 2048
 batch_expansion_rate: 1.4 # Null
@@ -41,6 +41,7 @@ neg_margin: 1
 normalize_embeddings: False
 clustering_head: True
 clustering_importance: 0.1
+cluster_batch_size: 16
 
 protocol: 'vmd'
 baseline:

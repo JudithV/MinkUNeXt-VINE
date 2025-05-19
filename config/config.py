@@ -51,6 +51,8 @@ class Config():
             self.normalize_embeddings = config.get('normalize_embeddings')
             self.clustering_head = config.get('clustering_head')
             self.clustering_importance = config.get('clustering_importance')
+            self.cluster_batch_size = config.get('cluster_batch_size')
+
             self.protocol = config.get('protocol')
 
             if self.protocol == 'baseline':
