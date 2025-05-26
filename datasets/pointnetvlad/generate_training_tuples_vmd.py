@@ -30,7 +30,58 @@ P = [P26, P27, P28]
 RUNS_FOLDER = "vmd/"
 FILENAME_GPS = "gps.csv"
 FILENAME = "data.csv"
-POINTCLOUD_FOLS = "/pointcloud/lidar3d_1/"
+POINTCLOUD_FOLS = "pointcloud/lidar3d_0/"
+
+def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
+                          delta_pos_north=8, delta_pos_east=2.5, 
+                          delta_neg_north=10, delta_neg_east=3):
+    # Obtén la posición del ancla y la matriz de coordenadas
+    anchor = queries[anchor_ndx]
+    anchor_pos = anchor.position  # [northing, easting]
+    coords = df_centroids[['northing', 'easting']].values
+
+    # Configura la figura y el eje
+    fig, ax = plt.subplots(figsize=(8, 8))
+    
+    # Graficar todos los scans
+    ax.scatter(coords[:, 1], coords[:, 0], color='gray', alpha=0.6, label='Scans')
+    
+    # Graficar el ancla
+    ax.scatter(anchor_pos[1], anchor_pos[0], color='blue', s=100, label='Anchor', zorder=5)
+    
+    # Graficar los puntos positivos
+    pos_idx = anchor.positives
+    ax.scatter(coords[pos_idx, 1], coords[pos_idx, 0],
+               color='green', s=80, label='Positivos', zorder=4)
+    
+    # Graficar los puntos no-negativos
+    nonneg_idx = anchor.non_negatives
+    ax.scatter(coords[nonneg_idx, 1], coords[nonneg_idx, 0],
+               color='red', marker='x', s=80, label='No-negativos', zorder=4)
+    
+    # Dibujar rectángulo para la región positiva
+    pos_rect = patches.Rectangle(
+        (anchor_pos[1] - delta_pos_east, anchor_pos[0] - delta_pos_north),
+        2 * delta_pos_east, 2 * delta_pos_north,
+        linewidth=2, edgecolor='green', facecolor='none', label='Région positiva'
+    )
+    ax.add_patch(pos_rect)
+    
+    # Dibujar rectángulo para la región no-negativa
+    nonneg_rect = patches.Rectangle(
+        (anchor_pos[1] - delta_neg_east, anchor_pos[0] - delta_neg_north),
+        2 * delta_neg_east, 2 * delta_neg_north,
+        linewidth=2, edgecolor='red', facecolor='none', linestyle='--',
+        label='Région no-negativa'
+    )
+    ax.add_patch(nonneg_rect)
+    
+    # Configurar etiquetas y leyenda
+    ax.set_xlabel("Easting")
+    ax.set_ylabel("Northing")
+    ax.legend()
+    ax.set_title(f"Visualización del Split para Anchor {anchor_ndx}")
+    plt.savefig(filename, dpi=300)
 
 def construct_query_dict(df_centroids, base_path, filename, 
                                      delta_pos_north=8, delta_pos_east=2.5, 
@@ -85,6 +136,7 @@ def construct_query_dict(df_centroids, base_path, filename,
         pickle.dump(queries, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     print("Done", filename)
+    return queries
 
 def construct_query_dict_pnv(df_centroids, base_path, filename):
     tree = KDTree(df_centroids[['northing','easting']])
@@ -207,20 +259,20 @@ if __name__ == '__main__':
 
     df_train = pd.DataFrame(columns=['file', 'northing', 'easting'])
     df_test = pd.DataFrame(columns=['file', 'northing', 'easting'])
+    run_path = ""
     for folder in tqdm.tqdm(folders):
-        files = []
+        files, scantimes_pcds, ref_times, scan_times, utm_pos = [], [], [], [], []
         if os.path.exists(RUNS_FOLDER+"pergola/"+folder):
-            files = os.listdir(RUNS_FOLDER+"pergola/"+folder+POINTCLOUD_FOLS)
-
-            scantimes_pcds = []
+            run_path = os.path.join(RUNS_FOLDER,"pergola", folder)
+            files = os.listdir(os.path.join(run_path,POINTCLOUD_FOLS))
 
             for f in files:
                 timestamp = int(f.split('.')[0])
                 scantimes_pcds.append(timestamp)
             scantimes_pcds = list(set(scantimes_pcds))
             scan_data = pd.DataFrame({"timestamp": scantimes_pcds})
-            scan_data.to_csv(RUNS_FOLDER+"pergola/"+folder+"/scan_times.csv", index = False)
-            with open(RUNS_FOLDER+"pergola/"+folder+"/"+FILENAME, 'w', newline='') as file:
+            scan_data.to_csv(os.path.join(run_path,"scan_times.csv"), index = False)
+            with open(run_path+"/"+FILENAME, 'w', newline='') as file:
                 escritor_csv = csv.writer(file)
                 escritor_csv.writerow(['timestamp','northing','easting'])
                 scan_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "pergola/", folder, "scan_times.csv"), sep=',')
@@ -234,21 +286,33 @@ if __name__ == '__main__':
                 for ts in scan_times:
                     escritor_csv.writerow([ts,utm_pos[ind][0],utm_pos[ind][1]])
                     ind += 1
+                # Delete unused scans that were excluded by the sampling in order to free disk space
+                used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
+                unused_scans = list(set(files) - set(used_scans))
+                print(f"Len used: {len(used_scans)}")
+                print(f"Len unused: {len(unused_scans)}")
+                print(f"Total files: {len(files)}")
+
+                """for f in unused_scans:
+                    try:
+                        os.remove(os.path.join(run_path, POINTCLOUD_FOLS, f))
+                    except Exception as e:
+                        print(f"Error deleting {f}: {e}")"""
         elif os.path.exists(RUNS_FOLDER+"vineyard/"+folder):
-            files = os.listdir(RUNS_FOLDER+"vineyard/"+folder+POINTCLOUD_FOLS)
-            scantimes_pcds = []
+            run_path = os.path.join(RUNS_FOLDER,"vineyard",folder)
+            files = os.listdir(os.path.join(run_path, POINTCLOUD_FOLS))
 
             for f in files:
                 timestamp = int(f.split('.')[0])
                 scantimes_pcds.append(timestamp)
             scantimes_pcds = list(set(scantimes_pcds))
             scan_data = pd.DataFrame({"timestamp": scantimes_pcds})
-            scan_data.to_csv(RUNS_FOLDER+"vineyard/"+folder+"/scan_times.csv", index = False)
-            with open(RUNS_FOLDER+"vineyard/"+folder+"/"+FILENAME, 'w', newline='') as file:
+            scan_data.to_csv(os.path.join(run_path, "scan_times.csv"), index = False)
+            with open(run_path + "/" +FILENAME, 'w', newline='') as file:
                 escritor_csv = csv.writer(file)
                 escritor_csv.writerow(['timestamp','northing','easting'])
-                scan_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "vineyard/", folder, "scan_times.csv"), sep=',')
-                gps_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "vineyard/", folder, FILENAME_GPS), sep=',')
+                scan_data = pd.read_csv(os.path.join(base_path, run_path, "scan_times.csv"), sep=',')
+                gps_data = pd.read_csv(os.path.join(base_path, run_path, FILENAME_GPS), sep=',')
                 UTMx, UTMy = gps2utm(gps_data)
                 gps_times = gps_data['timestamp']
                 ref_times, _ = sample_gps(deltaxy=1.0,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
@@ -258,6 +322,18 @@ if __name__ == '__main__':
                 for ts in scan_times:
                     escritor_csv.writerow([ts,utm_pos[ind][0],utm_pos[ind][1]])
                     ind += 1
+                # Delete unused scans that were excluded by the sampling in order to free disk space
+                used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
+                unused_scans = list(set(files) - set(used_scans))
+                print(f"Len used: {len(used_scans)}")
+                print(f"Len unused: {len(unused_scans)}")
+                print(f"Total files: {len(files)}")
+
+                """for f in unused_scans:
+                    try:
+                        os.remove(os.path.join(run_path, POINTCLOUD_FOLS, f))
+                    except Exception as e:
+                        print(f"Error deleting {f}: {e}")"""
         if lidar_i == 0:
             lidar_i = 1
         else:
@@ -311,8 +387,10 @@ if __name__ == '__main__':
     print("Vineyard count in test: ", df_test["file"].str.count("vineyard").sum())
 
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    construct_query_dict(df_train, base_path, "training_queries_vmd.pickle")
-    construct_query_dict(df_test, base_path, "test_queries_vmd.pickle")
+    train_queries = construct_query_dict(df_train, base_path, "training_queries_vmd_feb-may.pickle")
+    plot_split_for_anchors(df_train, train_queries, "scans_train_set.png")
+    test_queries = construct_query_dict(df_test, base_path, "test_queries_vmd_feb-may.pickle")
+    plot_split_for_anchors(df_test, test_queries, "scans_test_set.png")
     #construct_query_dict_pnv(df_train, base_path, "PNV_training_queries_vmd.pickle")
     #construct_query_dict_pnv(df_test, base_path, "PNV_test_queries_vmd.pickle")
 
