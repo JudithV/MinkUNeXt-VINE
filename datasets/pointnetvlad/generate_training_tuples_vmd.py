@@ -18,7 +18,8 @@ import pickle
 import utm
 import random
 import tqdm
-
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 from datasets.base_datasets import TrainingTuple
 # Import test set boundaries
@@ -33,8 +34,8 @@ FILENAME = "data.csv"
 POINTCLOUD_FOLS = "pointcloud/lidar3d_0/"
 
 def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
-                          delta_pos_north=8, delta_pos_east=2.5, 
-                          delta_neg_north=10, delta_neg_east=3):
+                          delta_pos_north=2.5, delta_pos_east=8, 
+                          delta_neg_north=3, delta_neg_east=10):
     # Obtén la posición del ancla y la matriz de coordenadas
     anchor = queries[anchor_ndx]
     anchor_pos = anchor.position  # [northing, easting]
@@ -80,7 +81,6 @@ def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
     ax.set_xlabel("Easting")
     ax.set_ylabel("Northing")
     ax.legend()
-    ax.set_title(f"Visualización del Split para Anchor {anchor_ndx}")
     plt.savefig(filename, dpi=300)
 
 def construct_query_dict(df_centroids, base_path, filename, 
@@ -247,7 +247,6 @@ if __name__ == '__main__':
     #all_folders = sorted(os.listdir(os.path.join(base_path, RUNS_FOLDER + "pergola/")))
 
     folders = []
-    lidar_i = 0
     lidar_folders = [0, 1]  # Alternamos entre 0 y 1
 
     # All runs are used for training (both full and partial)
@@ -264,119 +263,62 @@ if __name__ == '__main__':
         files, scantimes_pcds, ref_times, scan_times, utm_pos = [], [], [], [], []
         if os.path.exists(RUNS_FOLDER+"pergola/"+folder):
             run_path = os.path.join(RUNS_FOLDER,"pergola", folder)
-            files = os.listdir(os.path.join(run_path,POINTCLOUD_FOLS))
-
-            for f in files:
-                timestamp = int(f.split('.')[0])
-                scantimes_pcds.append(timestamp)
-            scantimes_pcds = list(set(scantimes_pcds))
-            scan_data = pd.DataFrame({"timestamp": scantimes_pcds})
-            scan_data.to_csv(os.path.join(run_path,"scan_times.csv"), index = False)
-            with open(run_path+"/"+FILENAME, 'w', newline='') as file:
-                escritor_csv = csv.writer(file)
-                escritor_csv.writerow(['timestamp','northing','easting'])
-                scan_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "pergola/", folder, "scan_times.csv"), sep=',')
-                gps_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "pergola/", folder, FILENAME_GPS), sep=',')
-                UTMx, UTMy = gps2utm(gps_data)
-                gps_times = gps_data['timestamp']
-                ref_times, _ = sample_gps(deltaxy=1.0,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
-                scan_times, _, _ = get_closest_data(scan_data, ref_times)
-                _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm')
-                ind = 0
-                for ts in scan_times:
-                    escritor_csv.writerow([ts,utm_pos[ind][0],utm_pos[ind][1]])
-                    ind += 1
-                # Delete unused scans that were excluded by the sampling in order to free disk space
-                used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
-                unused_scans = list(set(files) - set(used_scans))
-                print(f"Len used: {len(used_scans)}")
-                print(f"Len unused: {len(unused_scans)}")
-                print(f"Total files: {len(files)}")
-
-                """for f in unused_scans:
-                    try:
-                        os.remove(os.path.join(run_path, POINTCLOUD_FOLS, f))
-                    except Exception as e:
-                        print(f"Error deleting {f}: {e}")"""
+        
         elif os.path.exists(RUNS_FOLDER+"vineyard/"+folder):
             run_path = os.path.join(RUNS_FOLDER,"vineyard",folder)
-            files = os.listdir(os.path.join(run_path, POINTCLOUD_FOLS))
+        files = os.listdir(os.path.join(run_path, POINTCLOUD_FOLS))
 
-            for f in files:
-                timestamp = int(f.split('.')[0])
-                scantimes_pcds.append(timestamp)
-            scantimes_pcds = list(set(scantimes_pcds))
-            scan_data = pd.DataFrame({"timestamp": scantimes_pcds})
-            scan_data.to_csv(os.path.join(run_path, "scan_times.csv"), index = False)
-            with open(run_path + "/" +FILENAME, 'w', newline='') as file:
-                escritor_csv = csv.writer(file)
-                escritor_csv.writerow(['timestamp','northing','easting'])
-                scan_data = pd.read_csv(os.path.join(base_path, run_path, "scan_times.csv"), sep=',')
-                gps_data = pd.read_csv(os.path.join(base_path, run_path, FILENAME_GPS), sep=',')
-                UTMx, UTMy = gps2utm(gps_data)
-                gps_times = gps_data['timestamp']
-                ref_times, _ = sample_gps(deltaxy=1.0,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
-                scan_times, _, _ = get_closest_data(scan_data, ref_times)
-                _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm')
-                ind = 0
-                for ts in scan_times:
-                    escritor_csv.writerow([ts,utm_pos[ind][0],utm_pos[ind][1]])
-                    ind += 1
-                # Delete unused scans that were excluded by the sampling in order to free disk space
-                used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
-                unused_scans = list(set(files) - set(used_scans))
-                print(f"Len used: {len(used_scans)}")
-                print(f"Len unused: {len(unused_scans)}")
-                print(f"Total files: {len(files)}")
+        for f in files:
+            timestamp = int(f.split('.')[0])
+            scantimes_pcds.append(timestamp)
+        scantimes_pcds = list(set(scantimes_pcds))
+        scan_data = pd.DataFrame({"timestamp": scantimes_pcds})
+        scan_data.to_csv(os.path.join(run_path, "scan_times.csv"), index = False)
+        with open(run_path + "/" +FILENAME, 'w', newline='') as file:
+            escritor_csv = csv.writer(file)
+            escritor_csv.writerow(['timestamp','northing','easting'])
+            scan_data = pd.read_csv(os.path.join(base_path, run_path, "scan_times.csv"), sep=',')
+            gps_data = pd.read_csv(os.path.join(base_path, run_path, FILENAME_GPS), sep=',')
+            UTMx, UTMy = gps2utm(gps_data)
+            gps_times = gps_data['timestamp']
+            ref_times, _ = sample_gps(deltaxy=1.0,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
+            scan_times, _, _ = get_closest_data(scan_data, ref_times)
+            _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm')
+            ind = 0
+            for ts in scan_times:
+                escritor_csv.writerow([ts,utm_pos[ind][0],utm_pos[ind][1]])
+                ind += 1
+            # Delete unused scans that were excluded by the sampling in order to free disk space
+            used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
+            unused_scans = list(set(files) - set(used_scans))
+            print(f"Len used: {len(used_scans)}")
+            print(f"Len unused: {len(unused_scans)}")
+            print(f"Total files: {len(files)}")
 
-                """for f in unused_scans:
-                    try:
-                        os.remove(os.path.join(run_path, POINTCLOUD_FOLS, f))
-                    except Exception as e:
-                        print(f"Error deleting {f}: {e}")"""
-        if lidar_i == 0:
-            lidar_i = 1
-        else:
-            lidar_i = 0
+            """for f in unused_scans:
+                try:
+                    os.remove(os.path.join(run_path, POINTCLOUD_FOLS, f))
+                except Exception as e:
+                    print(f"Error deleting {f}: {e}")"""
             
     iter = 0
     for folder in tqdm.tqdm(folders):
         if os.path.exists(RUNS_FOLDER + "pergola/" + folder):
-            df_locations = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "pergola/", folder, FILENAME), sep=',')
-            #print(df_locations)
-            #df_locations['timestamp'] = RUNS_FOLDER + "pergola/" + folder + POINTCLOUD_FOLS + (df_locations.index % 2).astype(str) + "/" + df_locations['timestamp'].astype(str) + '.csv'
-            df_locations['timestamp'] = RUNS_FOLDER + "pergola/" + folder + POINTCLOUD_FOLS + df_locations['timestamp'].astype(str) + '.csv'
-            df_locations = df_locations.rename(columns={'timestamp': 'file'})
-            #print((df_locations.index % 2).astype(str))
-            for index, row in df_locations.iterrows():
-                """if check_in_test_set(row['northing'], row['easting'], P): # iter == (len(all_folders) - 1)
-                    df_test = df_test.append(row, ignore_index=True)
-                else:
-                    df_train = df_train.append(row, ignore_index=True)"""
-                if "run1" in row['file']:
-                    df_train = df_train.append(row, ignore_index=True)
-                else:
-                    df_test = df_test.append(row, ignore_index=True)
+            run_path = os.path.join(RUNS_FOLDER,"pergola",folder)
         elif os.path.exists(RUNS_FOLDER + "vineyard/" + folder):
-            df_locations = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "vineyard/", folder, FILENAME), sep=',')
-            #print(df_locations)
-            #df_locations['timestamp'] = RUNS_FOLDER + "vineyard/" + folder + POINTCLOUD_FOLS + (df_locations.index % 2).astype(str) + "/" + df_locations['timestamp'].astype(str) + '.csv'
-            df_locations['timestamp'] = RUNS_FOLDER + "vineyard/" + folder + POINTCLOUD_FOLS + df_locations['timestamp'].astype(str) + '.csv'
-            df_locations = df_locations.rename(columns={'timestamp': 'file'})
-            #print((df_locations.index % 2).astype(str))
-            for index, row in df_locations.iterrows():
-                """if check_in_test_set(row['northing'], row['easting'], P): # iter == (len(all_folders) - 1)
-                    df_test = df_test.append(row, ignore_index=True)
-                else:
-                    df_train = df_train.append(row, ignore_index=True)"""
-                if "run1" in row['file']:
-                    df_train = df_train.append(row, ignore_index=True)
-                else:
-                    df_test = df_test.append(row, ignore_index=True)
-        if lidar_i == 0:
-            lidar_i = 1
-        else:
-            lidar_i = 0
+            run_path = os.path.join(RUNS_FOLDER,"vineyard",folder)
+        df_locations = pd.read_csv(os.path.join(base_path, run_path, FILENAME), sep=',')
+        df_locations['timestamp'] = run_path + POINTCLOUD_FOLS + df_locations['timestamp'].astype(str) + '.csv'
+        df_locations = df_locations.rename(columns={'timestamp': 'file'})
+        for index, row in df_locations.iterrows():
+            """if check_in_test_set(row['northing'], row['easting'], P): # iter == (len(all_folders) - 1)
+                df_test = df_test.append(row, ignore_index=True)
+            else:
+                df_train = df_train.append(row, ignore_index=True)"""
+            if "run1" in row['file']:
+                df_train = df_train.append(row, ignore_index=True)
+            else:
+                df_test = df_test.append(row, ignore_index=True)
         iter += 1
 
     print("Number of training submaps: " + str(len(df_train['file'])))
@@ -388,9 +330,9 @@ if __name__ == '__main__':
 
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
     train_queries = construct_query_dict(df_train, base_path, "training_queries_vmd_feb-may.pickle")
-    plot_split_for_anchors(df_train, train_queries, "scans_train_set.png")
+    plot_split_for_anchor(df_train, train_queries, "scans_train_set.png")
     test_queries = construct_query_dict(df_test, base_path, "test_queries_vmd_feb-may.pickle")
-    plot_split_for_anchors(df_test, test_queries, "scans_test_set.png")
+    plot_split_for_anchor(df_test, test_queries, "scans_test_set.png")
     #construct_query_dict_pnv(df_train, base_path, "PNV_training_queries_vmd.pickle")
     #construct_query_dict_pnv(df_test, base_path, "PNV_test_queries_vmd.pickle")
 
