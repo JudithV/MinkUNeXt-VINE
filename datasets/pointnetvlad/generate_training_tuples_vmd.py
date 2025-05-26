@@ -35,7 +35,7 @@ POINTCLOUD_FOLS = "pointcloud/lidar3d_0/"
 
 def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
                           delta_pos_north=2.5, delta_pos_east=8, 
-                          delta_neg_north=3, delta_neg_east=10):
+                          delta_neg_north=5, delta_neg_east=15):
     # Obtén la posición del ancla y la matriz de coordenadas
     anchor = queries[anchor_ndx]
     anchor_pos = anchor.position  # [northing, easting]
@@ -84,8 +84,8 @@ def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
     plt.savefig(filename, dpi=300)
 
 def construct_query_dict(df_centroids, base_path, filename, 
-                                     delta_pos_north=8, delta_pos_east=2.5, 
-                                     delta_neg_north=10, delta_neg_east=3):
+                                     delta_pos_north=2.5, delta_pos_east=8, 
+                                     delta_neg_north=5, delta_neg_east=15):
 
     queries = {}
     coords = df_centroids[['northing', 'easting']].values
@@ -247,7 +247,6 @@ if __name__ == '__main__':
     #all_folders = sorted(os.listdir(os.path.join(base_path, RUNS_FOLDER + "pergola/")))
 
     folders = []
-    lidar_folders = [0, 1]  # Alternamos entre 0 y 1
 
     # All runs are used for training (both full and partial)
     index_list = len(all_folders)
@@ -295,11 +294,11 @@ if __name__ == '__main__':
             print(f"Len unused: {len(unused_scans)}")
             print(f"Total files: {len(files)}")
 
-            """for f in unused_scans:
+            for f in unused_scans:
                 try:
                     os.remove(os.path.join(run_path, POINTCLOUD_FOLS, f))
                 except Exception as e:
-                    print(f"Error deleting {f}: {e}")"""
+                    print(f"Error deleting {f}: {e}")
             
     iter = 0
     for folder in tqdm.tqdm(folders):
@@ -308,7 +307,8 @@ if __name__ == '__main__':
         elif os.path.exists(RUNS_FOLDER + "vineyard/" + folder):
             run_path = os.path.join(RUNS_FOLDER,"vineyard",folder)
         df_locations = pd.read_csv(os.path.join(base_path, run_path, FILENAME), sep=',')
-        df_locations['timestamp'] = run_path + POINTCLOUD_FOLS + df_locations['timestamp'].astype(str) + '.csv'
+        df_locations['timestamp'] = df_locations['timestamp'].astype(str).apply(lambda x: os.path.join(run_path, POINTCLOUD_FOLS, x + '.csv'))
+
         df_locations = df_locations.rename(columns={'timestamp': 'file'})
         for index, row in df_locations.iterrows():
             """if check_in_test_set(row['northing'], row['easting'], P): # iter == (len(all_folders) - 1)
@@ -329,9 +329,9 @@ if __name__ == '__main__':
     print("Vineyard count in test: ", df_test["file"].str.count("vineyard").sum())
 
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    train_queries = construct_query_dict(df_train, base_path, "training_queries_vmd_feb-may.pickle")
+    train_queries = construct_query_dict(df_train, base_path, "training_queries_vmd_feb-may_VLP.pickle")
     plot_split_for_anchor(df_train, train_queries, "scans_train_set.png")
-    test_queries = construct_query_dict(df_test, base_path, "test_queries_vmd_feb-may.pickle")
+    test_queries = construct_query_dict(df_test, base_path, "test_queries_vmd_feb-may_VLP.pickle")
     plot_split_for_anchor(df_test, test_queries, "scans_test_set.png")
     #construct_query_dict_pnv(df_train, base_path, "PNV_training_queries_vmd.pickle")
     #construct_query_dict_pnv(df_test, base_path, "PNV_test_queries_vmd.pickle")

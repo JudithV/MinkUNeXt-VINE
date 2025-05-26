@@ -28,7 +28,7 @@ initial_lr: 0.001
 scheduler: 'MultiStepLR' # MultiStepLR or CosineAnnealingLR or Null
 aug_mode: 1 # 1 if yes
 weight_decay: 0.0001
-loss: 'TruncatedSmoothAP' #'TruncatedSmoothAP' or 'BatchHardTripletMarginLoss' or 'BatchHardContrastiveLoss'
+loss: 'BatchHardContrastiveLoss' #'TruncatedSmoothAP' or 'BatchHardTripletMarginLoss' or 'BatchHardContrastiveLoss'
 
 margin: Null
 tau1: 0.01
@@ -39,7 +39,7 @@ pos_margin: 0
 neg_margin: 1
 
 normalize_embeddings: False
-clustering_head: True
+clustering_head: False
 clustering_importance: 0.1
 cluster_batch_size: 16
 
@@ -97,8 +97,8 @@ vmd:
   epochs: 100 
   scheduler_milestones: [50, 75]
   num_points: 23000
-  train_file: training_queries_vmd.pickle
-  val_file: test_queries_vmd.pickle
+  train_file: training_queries_vmd_feb-may_VLP.pickle
+  val_file: test_queries_vmd_feb-may_VLP.pickle
 
 print:
   model_info: True
