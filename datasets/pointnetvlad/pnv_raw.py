@@ -152,47 +152,46 @@ class PNVPointCloudLoader(PointCloudLoader):
                 file_pathname = file_pathname.replace("USyd/","USyd_downsample/").replace(".bin", ".csv")
             elif PARAMS.protocol == 'usyd' and not PARAMS.spherical_coords:
                 file_pathname = file_pathname.replace("USyd/","USyd_downsample/").replace(".bin", "_NO_SP.csv")
-            df = pd.read_csv(file_pathname)
+            if PARAMS.use_downsampled:
+                df = pd.read_csv(file_pathname)
+            else:
+                df = pd.read_csv(file_pathname).replace(PARAMS.protocol, PARAMS.protocol+"_downsampled")
             df.columns = df.columns.str.lower().str.strip()
             df = df.query('x != 0 and y != 0 and z != 0 and intensity != 0')
             points = df[["x", "y", "z"]].to_numpy() 
             #print(len(points)) # Number of points in cloud
             intensity = df["intensity"].to_numpy()
-            if PARAMS.correct_intensity:
-                intensity = self.correct_intensity(points, intensity)
-            if PARAMS.protocol == 'vmd':
-                pcd = o3d.geometry.PointCloud()
-                pcd.points = o3d.utility.Vector3dVector(points)
-                
-                pcd = pcd.voxel_down_sample(voxel_size=0.01)
-                #pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=200, std_ratio=0.01)
-                pcd, ind = self.dror_filter(pcd.points)
-                points = np.asarray(pcd.points)
+            if not PARAMS.use_downsampled:
+                if PARAMS.correct_intensity:
+                    intensity = self.correct_intensity(points, intensity)
+                if PARAMS.protocol == 'vmd':
+                    pcd = o3d.geometry.PointCloud()
+                    pcd.points = o3d.utility.Vector3dVector(points)
+                    
+                    pcd = pcd.voxel_down_sample(voxel_size=0.01)
+                    #pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=200, std_ratio=0.01)
+                    pcd, ind = self.dror_filter(pcd.points)
+                    points = np.asarray(pcd.points)
 
-                [x, y, z] = points[:, 0], points[:, 1], points[:, 2]
-                r2 = x ** 2 + y ** 2
-                min_height = 0.5
-                idx = np.where((r2 < PARAMS.max_distance ** 2) & (z > min_height))
-                points = points[idx]
-                intensity = intensity[idx]
-            if PARAMS.protocol == 'arvc': # Eliminar ruido presente en estos datos mediante radio min y max
-                [x, y, z] = points[:, 0], points[:, 1], points[:, 2]
-                r2 = x ** 2 + y ** 2
-                idx = np.where(r2 < PARAMS.max_distance ** 2) and np.where(r2 > PARAMS.min_distance ** 2)
-                points = points[idx]
-                intensity = intensity[idx]
-            if PARAMS.protocol != 'usyd' and PARAMS.spherical_coords:
-                spherical_points = SphericalCoords.to_spherical(points, PARAMS.protocol)
-                #print(min(spherical_points[:, 2]))
-            if PARAMS.equalize_intensity:
-                intensity = exposure.equalize_hist(intensity)
-            """pc = points[:, :3]
-            min_radius = 2.0
-            max_radius = PARAMS.max_distance
-            [x, y, z] = pc[:, 0], pc[:, 1], pc[:, 2]
-            r2 = x ** 2 + y ** 2
-            idx = np.where(r2 < max_radius ** 2) and np.where(r2 > min_radius ** 2)
-            return points[idx], intensity[idx]"""
+                    [x, y, z] = points[:, 0], points[:, 1], points[:, 2]
+                    r2 = x ** 2 + y ** 2
+                    idx = np.where((r2 < PARAMS.max_distance ** 2))
+                    points = points[idx]
+                    intensity = intensity[idx]
+                if PARAMS.protocol == 'arvc': # Eliminar ruido presente en estos datos mediante radio min y max
+                    [x, y, z] = points[:, 0], points[:, 1], points[:, 2]
+                    r2 = x ** 2 + y ** 2
+                    idx = np.where(r2 < PARAMS.max_distance ** 2) and np.where(r2 > PARAMS.min_distance ** 2)
+                    points = points[idx]
+                    intensity = intensity[idx]
+                if PARAMS.protocol != 'usyd' and PARAMS.spherical_coords:
+                    points = np.concatenate((points, intensity[:, np.newaxis]), axis=1)
+                    points = SphericalCoords.to_spherical(points, PARAMS.protocol)
+                    intensity = points[:, 3]
+                    points = points[:, :3]
+                    #print(min(spherical_points[:, 2]))
+                if PARAMS.equalize_intensity:
+                    intensity = exposure.equalize_hist(intensity)
             return points, intensity
         
         else:

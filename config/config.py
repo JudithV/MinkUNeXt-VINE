@@ -33,6 +33,7 @@ class Config():
             self.equalize_intensity = config.get('equalize_intensity')
             self.process_intensity = config.get('process_intensity')
             self.correct_intensity = config.get('correct_intensity')
+            self.use_downsampled = config.get('use_downsampled')
             self.min_distance = config.get('min_distance')
             self.max_distance = config.get('max_distance')
             

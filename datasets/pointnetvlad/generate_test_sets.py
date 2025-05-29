@@ -277,10 +277,12 @@ if __name__ == '__main__':
     all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "pergola/"))) + sorted(os.listdir(os.path.join(base_path, runs_folder + "vineyard/")))
     #all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "pergola/")))
     for folder in all_folders:
+        if "_02_" not in folder:
+            continue
         if os.path.exists(os.path.join(base_path, runs_folder + "pergola/" + folder)):
             folders.append("pergola/"+folder)
         else:
             folders.append("vineyard/"+folder)
     
-    construct_query_and_database_sets(base_path, runs_folder, folders, "/pointcloud/lidar3d_1/",
+    construct_query_and_database_sets(base_path, runs_folder, folders, "/pointcloud/lidar3d_0/",
                                       "data.csv", P_DICT["vmd"], "vmd")
