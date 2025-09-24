@@ -148,30 +148,41 @@ class PNVPointCloudLoader(PointCloudLoader):
     def read_pc(self, device, file_pathname: str) -> np.ndarray:
         if PARAMS.format_point_cloud == 'csv':
             # SE RECIBE LA PC EN CSV
-            if PARAMS.protocol == 'usyd' and PARAMS.spherical_coords:
-                file_pathname = file_pathname.replace("USyd/","USyd_downsample/").replace(".bin", ".csv")
-            elif PARAMS.protocol == 'usyd' and not PARAMS.spherical_coords:
-                file_pathname = file_pathname.replace("USyd/","USyd_downsample/").replace(".bin", "_NO_SP.csv")
-            if PARAMS.use_downsampled:
+            if not PARAMS.use_downsampled:
                 df = pd.read_csv(file_pathname)
             else:
-                df = pd.read_csv(file_pathname).replace(PARAMS.protocol, PARAMS.protocol+"_downsampled")
+                if PARAMS.protocol == 'usyd' and PARAMS.spherical_coords:
+                    file_pathname = file_pathname.replace("USyd/","USyd_downsample/").replace(".bin", ".csv")
+                elif PARAMS.protocol == 'usyd' and not PARAMS.spherical_coords:
+                    file_pathname = file_pathname.replace("USyd/","USyd_downsample/").replace(".bin", "_NO_SP.csv")
+                else:
+                    file_pathname = file_pathname.replace(PARAMS.protocol, PARAMS.protocol+"_downsample")
+                df = pd.read_csv(file_pathname)
             df.columns = df.columns.str.lower().str.strip()
-            df = df.query('x != 0 and y != 0 and z != 0 and intensity != 0')
-            points = df[["x", "y", "z"]].to_numpy() 
+            if PARAMS.protocol == 'blt' and PARAMS.use_2D:
+                points = np.column_stack([df['x'], df['y'], np.zeros(len(df))])
+            else:
+                df = df.query('x != 0 and y != 0 and z != 0 and intensity != 0')
+                points = df[["x", "y", "z"]].to_numpy() 
+            if PARAMS.normalize:
+                pcd = o3d.geometry.PointCloud()
+                pcd.points = o3d.utility.Vector3dVector(points)
+                points = self.global_normalize(pcd)
             #print(len(points)) # Number of points in cloud
             intensity = df["intensity"].to_numpy()
+            if PARAMS.correct_intensity:
+                intensity = self.correct_intensity(points, intensity)
             if not PARAMS.use_downsampled:
                 if PARAMS.correct_intensity:
                     intensity = self.correct_intensity(points, intensity)
                 if PARAMS.protocol == 'vmd':
-                    pcd = o3d.geometry.PointCloud()
+                    """pcd = o3d.geometry.PointCloud()
                     pcd.points = o3d.utility.Vector3dVector(points)
                     
-                    pcd = pcd.voxel_down_sample(voxel_size=0.01)
-                    #pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=200, std_ratio=0.01)
+                    #pcd = pcd.voxel_down_sample(voxel_size=0.01)
+                    pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=200, std_ratio=0.01)
                     pcd, ind = self.dror_filter(pcd.points)
-                    points = np.asarray(pcd.points)
+                    points = np.asarray(pcd.points)"""
 
                     [x, y, z] = points[:, 0], points[:, 1], points[:, 2]
                     r2 = x ** 2 + y ** 2
@@ -223,6 +234,9 @@ class PNVPointCloudLoader(PointCloudLoader):
             if pc.shape[0] == 0:
                 pc = np.zeros((1, 4), dtype=np.float32)
             else:
+                if PARAMS.correct_intensity:
+                    intensity = self.correct_intensity(pc[:, :3], pc[:, 3])
+                    pc = np.concatenate((pc[:, :3], intensity[:, np.newaxis]), axis=1)
                 if PARAMS.spherical_coords:
                     pc = SphericalCoords.to_spherical(pc, PARAMS.protocol)
                 if PARAMS.equalize_intensity:

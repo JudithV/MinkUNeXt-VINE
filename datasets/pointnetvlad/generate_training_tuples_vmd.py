@@ -23,15 +23,17 @@ import matplotlib.patches as patches
 
 from datasets.base_datasets import TrainingTuple
 # Import test set boundaries
-from datasets.pointnetvlad.generate_test_sets import P26, P27, P28, check_in_test_set
+from datasets.pointnetvlad.generate_test_sets import P26, P27, P28, P29, check_in_test_set
 
 # Test set boundaries
-P = [P26, P27, P28]
+P = [P26, P27, P28, P29]
 
 RUNS_FOLDER = "vmd/"
 FILENAME_GPS = "gps.csv"
 FILENAME = "data.csv"
-POINTCLOUD_FOLS = "pointcloud/lidar3d_1/"
+POINTCLOUD_FOLS = "pointcloud/lidar3d_0/"
+USE_GPS = True
+USE_SEGMENT = False
 
 def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
                           delta_pos_north=2.5, delta_pos_east=8, 
@@ -84,52 +86,53 @@ def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
     plt.savefig(filename, dpi=300)
 
 def construct_query_dict(df_centroids, base_path, filename, 
-                                     delta_pos_north=2.5, delta_pos_east=8, 
-                                     delta_neg_north=5, delta_neg_east=15):
+                                     delta_pos_north=2.5, delta_pos_east=33,
+                                     min_pos_north=0.5, min_pos_east=5,
+                                     delta_neg_north=5, delta_neg_east=50):
 
     queries = {}
+    tree = KDTree(df_centroids[['northing', 'easting']])
     coords = df_centroids[['northing', 'easting']].values
-
-    for anchor_ndx in range(len(df_centroids)):
-        anchor_pos = coords[anchor_ndx]
+    type_run = df_centroids['type'].values
+    segments = df_centroids['segment'].values
+    ind_nn = tree.query_radius(df_centroids[['northing', 'easting']], r=10) # r=7
+    ind_r = tree.query_radius(df_centroids[['northing', 'easting']], r=15) # r=15
+    # ORIGINAL:
+    for anchor_ndx in range(len(ind_nn)):
+        anchor_pos = np.array(df_centroids.iloc[anchor_ndx][['northing', 'easting']])
         query = df_centroids.iloc[anchor_ndx]["file"]
-
-        # Comparar distancias relativas para encontrar positivos y no-negativos
-        diffs = coords - anchor_pos  # vector restado a cada punto
-        abs_diffs = np.abs(diffs)
-
-        # Positivos: dentro de un rectángulo pequeño (excepto el mismo punto)
-        positive_mask = (
-            (abs_diffs[:, 0] <= delta_pos_north) &
-            (abs_diffs[:, 1] <= delta_pos_east) &
-            (np.arange(len(coords)) != anchor_ndx)
-        )
-        positives = np.where(positive_mask)[0]
-
-        # No-negativos: dentro de un rectángulo grande
-        non_negative_mask = (
-            (abs_diffs[:, 0] <= delta_neg_north) &
-            (abs_diffs[:, 1] <= delta_neg_east)
-        )
-        non_negatives = np.where(non_negative_mask)[0]
-
-        # Extract timestamp from filename
+        # Extract timestamp from the filename
         scan_filename = os.path.split(query)[1]
         assert os.path.splitext(scan_filename)[1] == '.csv', f"Expected .csv file: {scan_filename}"
         timestamp = int(os.path.splitext(scan_filename)[0])
 
-        # Sort the results
-        positives = np.sort(positives)
-        non_negatives = np.sort(non_negatives)
+        if USE_SEGMENT:
+            # Condiciones del ancla
+            anchor_type = type_run[anchor_ndx]
+            anchor_segment = segments[anchor_ndx]
 
-        queries[anchor_ndx] = TrainingTuple(
-            id=anchor_ndx,
-            timestamp=timestamp,
-            rel_scan_filepath=query,
-            positives=positives,
-            non_negatives=non_negatives,
-            position=anchor_pos
-        )
+            # --- Positivos ---
+            positives = ind_nn[anchor_ndx]
+            positives = positives[positives != anchor_ndx]  # excluir el propio ancla
+            positives = [p for p in positives if type_run[p] == anchor_type and segments[p] == anchor_segment]
+            positives = np.sort(positives)
+
+            # --- No-negativos ---
+            non_negatives = ind_r[anchor_ndx]
+            non_negatives = [n for n in non_negatives if type_run[n] == anchor_type and segments[n] == anchor_segment]
+            non_negatives = np.sort(non_negatives)
+        else:
+            positives = ind_nn[anchor_ndx]
+            non_negatives = ind_r[anchor_ndx]
+
+            positives = positives[positives != anchor_ndx]
+            # Sort ascending order
+            positives = np.sort(positives)
+            non_negatives = np.sort(non_negatives)
+
+        # Tuple(id: int, timestamp: int, rel_scan_filepath: str, positives: List[int], non_negatives: List[int])
+        queries[anchor_ndx] = TrainingTuple(id=anchor_ndx, timestamp=timestamp, rel_scan_filepath=query,
+                                            positives=positives, non_negatives=non_negatives, position=anchor_pos)
 
     file_path = os.path.join(base_path, filename)
     with open(file_path, 'wb') as handle:
@@ -183,8 +186,8 @@ def gps2utm(df_gps):
 
     return UTMx, UTMy
 
-def sample_gps(deltaxy, UTMx, UTMy, timestamp):
-    gps_times = []
+def sample_gps(deltaxy, UTMx, UTMy, s, timestamp):
+    gps_times, segments = [], []
     utm_positions = []
     gpsi = gpsi1 = gps = []
     for ind in timestamp.index:
@@ -193,6 +196,7 @@ def sample_gps(deltaxy, UTMx, UTMy, timestamp):
         if ind == 0: 
             gps_times.append(current_time)
             utm_positions.append([UTMx[ind], UTMy[ind]])
+            segments.append(s[ind])
             gpsi = gps
 
         gpsi1 = gps
@@ -200,8 +204,9 @@ def sample_gps(deltaxy, UTMx, UTMy, timestamp):
         if dxy > deltaxy:
             gps_times.append(current_time)
             utm_positions.append([UTMx[ind], UTMy[ind]])
+            segments.append(s[ind])
             gpsi = gpsi1
-    return np.array(gps_times), np.array(utm_positions)
+    return np.array(gps_times), np.array(utm_positions), np.array(segments)
 
 def get_closest_data(df_data, time_list, gps_mode='utm'):
     positions = []
@@ -242,9 +247,9 @@ if __name__ == '__main__':
     print('Dataset root: {}'.format(PARAMS.dataset_folder))
     base_path = PARAMS.dataset_folder
 
-    all_folders = sorted(os.listdir(os.path.join(base_path, RUNS_FOLDER + "pergola/"))) + sorted(os.listdir(os.path.join(base_path, RUNS_FOLDER + "vineyard/")))
+    #all_folders = sorted(os.listdir(os.path.join(base_path, RUNS_FOLDER + "pergola/"))) + sorted(os.listdir(os.path.join(base_path, RUNS_FOLDER + "vineyard/")))
 
-    #all_folders = sorted(os.listdir(os.path.join(base_path, RUNS_FOLDER + "pergola/")))
+    all_folders = sorted(os.listdir(os.path.join(base_path, RUNS_FOLDER + "vineyard/")))
 
     folders = []
 
@@ -255,21 +260,30 @@ if __name__ == '__main__':
         folders.append(all_folders[index])
     print(folders)
 
-    df_train = pd.DataFrame(columns=['file', 'northing', 'easting'])
-    df_test = pd.DataFrame(columns=['file', 'northing', 'easting'])
+    df_train = pd.DataFrame(columns=['file', 'northing', 'easting', 'segment', 'type'])
+    df_test = pd.DataFrame(columns=['file', 'northing', 'easting', 'segment', 'type'])
     run_path = ""
+    start_row_6 = (405165.94364507403, 5025149.177896624)
+    end_row_9 = (405147.7747196499, 5025045.434330138)
+    min_easting = min(start_row_6[0], end_row_9[0])
+    max_easting = max(start_row_6[0], end_row_9[0])
+    min_northing = min(start_row_6[1], end_row_9[1])
+    max_northing = max(start_row_6[1], end_row_9[1])
+    
     for folder in tqdm.tqdm(folders):
-        if "_02_" not in folder:
+        if "run2_03_p" in folder: # "lidar3d_1" in POINTCLOUD_FOLS and //  or "run3" not in folder
             continue
-        if "lidar3d_1" in POINTCLOUD_FOLS and "run2_03_p" in folder:
+        if "run3" not in folder:
             continue
         files, scantimes_pcds, ref_times, scan_times, utm_pos = [], [], [], [], []
-        if os.path.exists(RUNS_FOLDER+"pergola/"+folder):
-            run_path = os.path.join(RUNS_FOLDER,"pergola", folder)
+        if os.path.exists(base_path+RUNS_FOLDER+"pergola/"+folder):
+            run_path = os.path.join(base_path, RUNS_FOLDER,"pergola", folder)
         
-        elif os.path.exists(RUNS_FOLDER+"vineyard/"+folder):
-            run_path = os.path.join(RUNS_FOLDER,"vineyard",folder)
-        files = os.listdir(os.path.join(run_path, POINTCLOUD_FOLS))
+        elif os.path.exists(base_path+RUNS_FOLDER+"vineyard/"+folder):
+            print(RUNS_FOLDER+"vineyard/"+folder)
+            run_path = os.path.join(base_path,RUNS_FOLDER,"vineyard",folder)
+            print(run_path)
+        files = os.listdir(os.path.join(base_path,run_path, POINTCLOUD_FOLS))
 
         for f in files:
             timestamp = int(f.split('.')[0])
@@ -279,17 +293,23 @@ if __name__ == '__main__':
         scan_data.to_csv(os.path.join(run_path, "scan_times.csv"), index = False)
         with open(run_path + "/" +FILENAME, 'w', newline='') as file:
             escritor_csv = csv.writer(file)
-            escritor_csv.writerow(['timestamp','northing','easting'])
+            escritor_csv.writerow(['timestamp','northing','easting', 'segment', 'type'])
             scan_data = pd.read_csv(os.path.join(base_path, run_path, "scan_times.csv"), sep=',')
             gps_data = pd.read_csv(os.path.join(base_path, run_path, FILENAME_GPS), sep=',')
             UTMx, UTMy = gps2utm(gps_data)
             gps_times = gps_data['timestamp']
-            ref_times, _ = sample_gps(deltaxy=1.0,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
+            type_data = gps_data['type']
+            if not USE_GPS:
+                df_SLAM = pd.read_csv(os.path.join(base_path, run_path, "SLAM", "solution_graphslam.csv"))
+                UTMx = df_SLAM['x']
+                UTMy = df_SLAM['y']
+                gps_times = df_SLAM['timestamp']
+            ref_times, _, segment_id = sample_gps(deltaxy=1.0,UTMx=UTMx, UTMy=UTMy, s=gps_data['segment'], timestamp=gps_times)
             scan_times, _, _ = get_closest_data(scan_data, ref_times)
             _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm')
             ind = 0
             for ts in scan_times:
-                escritor_csv.writerow([ts,utm_pos[ind][0],utm_pos[ind][1]])
+                escritor_csv.writerow([ts,utm_pos[ind][1],utm_pos[ind][0],segment_id[ind],type_data[ind]])
                 ind += 1
             # Delete unused scans that were excluded by the sampling in order to free disk space
             used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
@@ -298,17 +318,18 @@ if __name__ == '__main__':
             print(f"Len unused: {len(unused_scans)}")
             print(f"Total files: {len(files)}")
 
-            for f in unused_scans:
+            """for f in unused_scans:
                 try:
                     os.remove(os.path.join(run_path, POINTCLOUD_FOLS, f))
                 except Exception as e:
-                    print(f"Error deleting {f}: {e}")
+                    print(f"Error deleting {f}: {e}")"""
             
     iter = 0
     for folder in tqdm.tqdm(folders):
-        if "_02_" not in folder:
+        df_triplet = pd.DataFrame(columns=['file', 'northing', 'easting'])
+        if "run2_03_p" in folder: # "lidar3d_1" in POINTCLOUD_FOLS and //  or "run3" not in folder
             continue
-        if "lidar3d_1" in POINTCLOUD_FOLS and "run2_03_p" in folder:
+        if "run3" not in folder:
             continue
         if os.path.exists(RUNS_FOLDER + "pergola/" + folder):
             run_path = os.path.join(RUNS_FOLDER,"pergola",folder)
@@ -316,17 +337,21 @@ if __name__ == '__main__':
             run_path = os.path.join(RUNS_FOLDER,"vineyard",folder)
         df_locations = pd.read_csv(os.path.join(base_path, run_path, FILENAME), sep=',')
         df_locations['timestamp'] = df_locations['timestamp'].astype(str).apply(lambda x: os.path.join(run_path, POINTCLOUD_FOLS, x + '.csv'))
-
+        total_rows = len(df_locations)
+        
         df_locations = df_locations.rename(columns={'timestamp': 'file'})
+
+        """mask_first_rows_wp = (((df_locations['segment'] == 0) | ((df_locations['segment'] == 11) & ("run1" in folder)) |
+                            ((df_locations['segment'] == 9) & ("run2" in folder)) | ((df_locations['segment'] == 4) & ("run3" in folder)))
+                            & (df_locations['northing'] < 405160.9000598852))
+        df_locations = df_locations[((df_locations['segment'] >= 1) & (df_locations['segment'] <= 3)) | mask_first_rows_wp]"""
         for index, row in df_locations.iterrows():
-            """if check_in_test_set(row['northing'], row['easting'], P): # iter == (len(all_folders) - 1)
+            #df_triplet = df_triplet.append(row, ignore_index=True)
+            if check_in_test_set(row['easting'], row['northing'], P): # iter == (len(all_folders) - 1)
                 df_test = df_test.append(row, ignore_index=True)
             else:
-                df_train = df_train.append(row, ignore_index=True)"""
-            if "run1" in row['file']:
                 df_train = df_train.append(row, ignore_index=True)
-            else:
-                df_test = df_test.append(row, ignore_index=True)
+        #construct_query_dict_pnv(df_triplet, run_path, "triplets_"+ folder + ".pickle")
         iter += 1
 
     print("Number of training submaps: " + str(len(df_train['file'])))
@@ -337,10 +362,10 @@ if __name__ == '__main__':
     print("Vineyard count in test: ", df_test["file"].str.count("vineyard").sum())
 
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    train_queries = construct_query_dict(df_train, base_path, "training_queries_vmd_feb_Livox.pickle")
+    train_queries = construct_query_dict(df_train, base_path+"/train_test_sets/vmd", "training_queries_vmd_run3_07-09_VELO.pickle")
     #plot_split_for_anchor(df_train, train_queries, "scans_train_set.png")
-    test_queries = construct_query_dict(df_test, base_path, "test_queries_vmd_feb_Livox.pickle")
+    test_queries = construct_query_dict(df_test, base_path+"/train_test_sets/vmd", "test_queries_vmd_run3_07-09_VELO.pickle")
     #plot_split_for_anchor(df_test, test_queries, "scans_test_set.png")
     #construct_query_dict_pnv(df_train, base_path, "PNV_training_queries_vmd_feb-may_VLP.pickle")
-    #construct_query_dict_pnv(df_test, base_path, "PNV_test_queries_vmd_feb-may_VLP.pickle")
+    #construct_query_dict_pnv(df_test, base_path, "PNV_test_queries_vmd_feb-may_VLP.pickle")"""
 

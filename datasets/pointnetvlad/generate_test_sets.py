@@ -68,15 +68,16 @@ P26 = [405156.7520412804, 5025041.790304738]
 P28 = [405154.7637688267, 5025158.401943873]
 
 P27 = [405104.76748520625, 5025096.011784253]
+P29 = [405179.49875482655, 5025142.53828079]
 #P28 = [405178.6821447582, 5025143.267948912]
 
 # KITTI
-P29 = [457190.21529351856, 5428835.785329838]
-P30 = [457323.8517238996, 5428045.37636426]
+P30 = [457190.21529351856, 5428835.785329838]
+P31 = [457323.8517238996, 5428045.37636426]
 
 P_DICT = {"oxford": [P1, P2, P3, P4], "university": [P5, P6, P7], "residential": [P8, P9, P10], "business": [],
           "arvc": [P12,P13, P14, P15], "blt-ktima": [P16, P17, P18], "blt-riseholme": [P19, P20], 
-          "nclt": [P21, P22, P23, P24], "vmd": [P26, P27, P28]}
+          "nclt": [P21, P22, P23, P24], "vmd": [P26, P27, P28, P29]}
 
 
 def check_in_test_set(northing, easting, points):
@@ -86,6 +87,23 @@ def check_in_test_set(northing, easting, points):
             in_test_set = True
             break
     return in_test_set
+
+def filter_first_visits(df, radius=10.0):
+    coords = df[['northing', 'easting']].values
+    tree = KDTree(coords)
+
+    mask = np.ones(len(df), dtype=bool)
+    visited = np.zeros(len(df), dtype=bool)
+
+    for i in range(len(df)):
+        if not visited[i]:
+            # Encuentra todos los puntos dentro del radio
+            idxs = tree.query_radius([coords[i]], r=radius)[0]
+            visited[idxs] = True  # Marca como visitados
+        else:
+            mask[i] = False  # Este ya se ha visitado antes
+
+    return df[mask].reset_index(drop=True)
 
 
 def output_to_file(output, base_path, filename):
@@ -99,6 +117,12 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
     database_trees = []
     test_trees = []
     ind = 0
+    start_row_6 = (405165.94364507403, 5025149.177896624)
+    end_row_9 = (405147.7747196499, 5025045.434330138)
+    min_easting = min(start_row_6[0], end_row_9[0])
+    max_easting = max(start_row_6[0], end_row_9[0])
+    min_northing = min(start_row_6[1], end_row_9[1])
+    max_northing = max(start_row_6[1], end_row_9[1])
 
     for folder in folders:
         #print(folder)
@@ -106,17 +130,26 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
         df_test = pd.DataFrame(columns=['file', 'northing', 'easting'])
 
         df_locations = pd.read_csv(os.path.join(base_path, runs_folder, folder, filename), sep=',')
+        """mask_first_rows_wp = (((df_locations['segment'] == 0) | ((df_locations['segment'] == 11) & ("run1" in folder)) |
+                            ((df_locations['segment'] == 9) & ("run2" in folder)) | ((df_locations['segment'] == 4) & ("run3" in folder)))
+                            & (df_locations['northing'] < 405160.9000598852))
+        df_locations = df_locations[((df_locations['segment'] >= 1) & (df_locations['segment'] <= 3)) | mask_first_rows_wp]"""
+
+        #df_locations = filter_first_visits(df_locations, radius=2.0)
         #df_locations['timestamp']=runs_folder+folder+pointcloud_fols+df_locations['timestamp'].astype(str)+'.bin'
         #df_locations=df_locations.rename(columns={'timestamp':'file'})
         for index, row in df_locations.iterrows():
             # entire business district is in the test set
             if output_name == "business":
                 df_test = df_test.append(row, ignore_index=True)
-            #elif check_in_test_set(row['northing'], row['easting'], p):
-                #df_test = df_test.append(row, ignore_index=True)
-                #df_test = pd.concat([df_test, pd.DataFrame([row])], ignore_index=True)
-            elif "run2" in folder:
-                df_test = df_test.append(row, ignore_index=True)
+            elif output_name == "vmd":
+                if check_in_test_set(row['easting'], row['northing'], p):
+                    df_test = df_test.append(row, ignore_index=True)
+            else:
+                if check_in_test_set(row['northing'], row['easting'], p):
+                    df_test = df_test.append(row, ignore_index=True)
+            """if "run2" in folder:
+                df_test = df_test.append(row, ignore_index=True)"""
             """if ind == (len(all_folders) - 1):
                 df_test = df_test.append(row, ignore_index=True)"""
             df_database = df_database.append(row, ignore_index=True)
@@ -142,14 +175,21 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
         else:
             df_locations['timestamp'] = runs_folder + folder + pointcloud_fols + df_locations['timestamp'].astype(str) + '.bin' 
         df_locations = df_locations.rename(columns={'timestamp': 'file'})
+        total_rows = len(df_locations)
         for index, row in df_locations.iterrows():
+            """if index >= (total_rows / 2):
+                break""" #consider half of the vineyard rows (seeking BLT similarity)
             # entire business district is in the test set
             if output_name == "business":
                 test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}
-            #elif check_in_test_set(row['northing'], row['easting'], p):
-                #test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}
-            elif "run2" in row['file']:
-                test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}
+            elif output_name == "vmd":
+                if check_in_test_set(row['easting'], row['northing'], p):
+                    test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}
+            else:
+                if check_in_test_set(row['northing'], row['easting'], p):
+                    test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}
+            """if "run2" in row['file']:
+                test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}"""
             """if ind == (len(all_folders) - 1):
                 test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}"""
             database[len(database.keys())] = {'query': row['file'], 'northing': row['northing'],
@@ -169,10 +209,13 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
                 coor = np.array([[test_sets[j][key]["northing"], test_sets[j][key]["easting"]]])
                 index = tree.query_radius(coor, r=5) # ARVC, VMD or BLT -> r = 5, NCLT or Baseline/Refined -> r = 25
                 # indices of the positive matches in database i of each query (key) in test set j
-                test_sets[j][key][i] = index[0].tolist()
+                #test_sets[j][key][i] = index[0].tolist()
+                index_list = [int(k) for k in index[0]]  # asegura que son ints y no arrays
+                intersection = list(set(index_list) & set(test_sets[j].keys()))
+                test_sets[j][key][i] = intersection
 
-    output_to_file(database_sets, base_path, "minkloc_" + output_name + '_evaluation_database.pickle')
-    output_to_file(test_sets, base_path, "minkloc_" + output_name + '_evaluation_query.pickle')
+    output_to_file(database_sets, base_path+"train_test_sets/"+PARAMS.protocol, "minkloc_" + output_name + '_evaluation_database.pickle')
+    output_to_file(test_sets, base_path+"train_test_sets/"+PARAMS.protocol, "minkloc_" + output_name + '_evaluation_query.pickle')
 
 
 if __name__ == '__main__':
@@ -244,14 +287,14 @@ if __name__ == '__main__':
     runs_folder = "blt/"
     
     # Process the two different scenarios within the dataset
-    all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "ktima/"))) + sorted(os.listdir(os.path.join(base_path, runs_folder + "riseholme/")))
+    all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "ktima/"))) #+ sorted(os.listdir(os.path.join(base_path, runs_folder + "riseholme/")))
     for folder in all_folders:
         if os.path.exists(os.path.join(base_path, runs_folder + "ktima/" + folder)):
             folders.append("ktima/"+folder)
     
-    construct_query_and_database_sets(base_path, runs_folder, folders, "/robot0/lidar/data/",
-                                      "data.csv", P_DICT["blt-ktima"], "blt")
-    folders = []
+    construct_query_and_database_sets(base_path, runs_folder, folders, "/robot0/lidar_3d/data/",
+                                      "data.csv", P_DICT["blt-ktima"], "blt")"""
+    """folders = []
     for folder in all_folders:
             if folder != "session0" and folder != "session1" and os.path.exists(os.path.join(base_path, runs_folder + "riseholme/" + folder)):
                 folders.append("riseholme/"+folder)
@@ -274,10 +317,10 @@ if __name__ == '__main__':
     runs_folder = "vmd/"
     
     # Process the two different scenarios within the dataset
-    all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "pergola/"))) + sorted(os.listdir(os.path.join(base_path, runs_folder + "vineyard/")))
-    #all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "pergola/")))
+    #all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "pergola/"))) + sorted(os.listdir(os.path.join(base_path, runs_folder + "vineyard/")))
+    all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "vineyard/")))
     for folder in all_folders:
-        if "_02_" not in folder:
+        if "run2_03_p" in folder or "run3" not in folder:
             continue
         if os.path.exists(os.path.join(base_path, runs_folder + "pergola/" + folder)):
             folders.append("pergola/"+folder)
