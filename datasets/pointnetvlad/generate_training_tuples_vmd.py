@@ -1,4 +1,4 @@
-# PointNetVLAD datasets: based on Oxford RobotCar and Inhouse
+# Judith Vilella Cantos. Miguel Hernández University of Elche.
 # Code adapted from PointNetVLAD repo: https://github.com/mikacuy/pointnetvlad
 
 import csv
@@ -38,31 +38,34 @@ USE_SEGMENT = False
 def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
                           delta_pos_north=2.5, delta_pos_east=8, 
                           delta_neg_north=5, delta_neg_east=15):
-    # Obtén la posición del ancla y la matriz de coordenadas
+    """
+    This method saves in a Figure a graphical representation of the positives and non-negatives distribution.
+    """
+    # Position of the anchor and coordinates
     anchor = queries[anchor_ndx]
     anchor_pos = anchor.position  # [northing, easting]
     coords = df_centroids[['northing', 'easting']].values
 
-    # Configura la figura y el eje
+    # Configure figure and axis
     fig, ax = plt.subplots(figsize=(8, 8))
     
-    # Graficar todos los scans
+    # Plot each scan
     ax.scatter(coords[:, 1], coords[:, 0], color='gray', alpha=0.6, label='Scans')
     
-    # Graficar el ancla
+    # Plot anchor
     ax.scatter(anchor_pos[1], anchor_pos[0], color='blue', s=100, label='Anchor', zorder=5)
     
-    # Graficar los puntos positivos
+    # Plot positives
     pos_idx = anchor.positives
     ax.scatter(coords[pos_idx, 1], coords[pos_idx, 0],
                color='green', s=80, label='Positivos', zorder=4)
     
-    # Graficar los puntos no-negativos
+    # Plot non-negatives
     nonneg_idx = anchor.non_negatives
     ax.scatter(coords[nonneg_idx, 1], coords[nonneg_idx, 0],
                color='red', marker='x', s=80, label='No-negativos', zorder=4)
     
-    # Dibujar rectángulo para la región positiva
+    # Plot positive region zone
     pos_rect = patches.Rectangle(
         (anchor_pos[1] - delta_pos_east, anchor_pos[0] - delta_pos_north),
         2 * delta_pos_east, 2 * delta_pos_north,
@@ -70,7 +73,7 @@ def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
     )
     ax.add_patch(pos_rect)
     
-    # Dibujar rectángulo para la región no-negativa
+    # Plot non-negative region zone
     nonneg_rect = patches.Rectangle(
         (anchor_pos[1] - delta_neg_east, anchor_pos[0] - delta_neg_north),
         2 * delta_neg_east, 2 * delta_neg_north,
@@ -79,7 +82,7 @@ def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
     )
     ax.add_patch(nonneg_rect)
     
-    # Configurar etiquetas y leyenda
+    # Labels and legend
     ax.set_xlabel("Easting")
     ax.set_ylabel("Northing")
     ax.legend()
@@ -107,21 +110,22 @@ def construct_query_dict(df_centroids, base_path, filename,
         timestamp = int(os.path.splitext(scan_filename)[0])
 
         if USE_SEGMENT:
-            # Condiciones del ancla
+            # Anchor conditions
             anchor_type = type_run[anchor_ndx]
             anchor_segment = segments[anchor_ndx]
 
-            # --- Positivos ---
+            # Positives
             positives = ind_nn[anchor_ndx]
             positives = positives[positives != anchor_ndx]  # excluir el propio ancla
             positives = [p for p in positives if type_run[p] == anchor_type and segments[p] == anchor_segment]
             positives = np.sort(positives)
 
-            # --- No-negativos ---
+            # Non-negatives
             non_negatives = ind_r[anchor_ndx]
             non_negatives = [n for n in non_negatives if type_run[n] == anchor_type and segments[n] == anchor_segment]
             non_negatives = np.sort(non_negatives)
         else:
+            # Conventional positives and non-negatives division by distance
             positives = ind_nn[anchor_ndx]
             non_negatives = ind_r[anchor_ndx]
 
@@ -164,7 +168,6 @@ def get_df_at_times(file_name, df_data, time_list, time_pcs):
     """
     Build a pandas df from exaclty the times specified
     """
-    # now find odo corresponding to closest times
     data = []
     index_pcs = 0
     for timestamp in time_list:
@@ -263,12 +266,6 @@ if __name__ == '__main__':
     df_train = pd.DataFrame(columns=['file', 'northing', 'easting', 'segment', 'type'])
     df_test = pd.DataFrame(columns=['file', 'northing', 'easting', 'segment', 'type'])
     run_path = ""
-    start_row_6 = (405165.94364507403, 5025149.177896624)
-    end_row_9 = (405147.7747196499, 5025045.434330138)
-    min_easting = min(start_row_6[0], end_row_9[0])
-    max_easting = max(start_row_6[0], end_row_9[0])
-    min_northing = min(start_row_6[1], end_row_9[1])
-    max_northing = max(start_row_6[1], end_row_9[1])
     
     for folder in tqdm.tqdm(folders):
         if "run2_03_p" in folder: # "lidar3d_1" in POINTCLOUD_FOLS and //  or "run3" not in folder
@@ -329,7 +326,7 @@ if __name__ == '__main__':
         df_triplet = pd.DataFrame(columns=['file', 'northing', 'easting'])
         if "run2_03_p" in folder: # "lidar3d_1" in POINTCLOUD_FOLS and //  or "run3" not in folder
             continue
-        if "run3" not in folder:
+        if "run3" not in folder: # Current experiments considering only loop-closure enriched scenario.
             continue
         if os.path.exists(RUNS_FOLDER + "pergola/" + folder):
             run_path = os.path.join(RUNS_FOLDER,"pergola",folder)
@@ -341,17 +338,11 @@ if __name__ == '__main__':
         
         df_locations = df_locations.rename(columns={'timestamp': 'file'})
 
-        """mask_first_rows_wp = (((df_locations['segment'] == 0) | ((df_locations['segment'] == 11) & ("run1" in folder)) |
-                            ((df_locations['segment'] == 9) & ("run2" in folder)) | ((df_locations['segment'] == 4) & ("run3" in folder)))
-                            & (df_locations['northing'] < 405160.9000598852))
-        df_locations = df_locations[((df_locations['segment'] >= 1) & (df_locations['segment'] <= 3)) | mask_first_rows_wp]"""
         for index, row in df_locations.iterrows():
-            #df_triplet = df_triplet.append(row, ignore_index=True)
             if check_in_test_set(row['easting'], row['northing'], P): # iter == (len(all_folders) - 1)
                 df_test = df_test.append(row, ignore_index=True)
             else:
                 df_train = df_train.append(row, ignore_index=True)
-        #construct_query_dict_pnv(df_triplet, run_path, "triplets_"+ folder + ".pickle")
         iter += 1
 
     print("Number of training submaps: " + str(len(df_train['file'])))
@@ -366,6 +357,4 @@ if __name__ == '__main__':
     #plot_split_for_anchor(df_train, train_queries, "scans_train_set.png")
     test_queries = construct_query_dict(df_test, base_path+"/train_test_sets/vmd", "test_queries_vmd_run3_07-09_VELO.pickle")
     #plot_split_for_anchor(df_test, test_queries, "scans_test_set.png")
-    #construct_query_dict_pnv(df_train, base_path, "PNV_training_queries_vmd_feb-may_VLP.pickle")
-    #construct_query_dict_pnv(df_test, base_path, "PNV_test_queries_vmd_feb-may_VLP.pickle")"""
 

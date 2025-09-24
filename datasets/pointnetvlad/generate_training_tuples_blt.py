@@ -1,4 +1,4 @@
-# PointNetVLAD datasets: based on Oxford RobotCar and Inhouse
+# Judith Vilella Cantos. Miguel Hernández University of Elche.
 # Code adapted from PointNetVLAD repo: https://github.com/mikacuy/pointnetvlad
 
 import csv
@@ -170,6 +170,62 @@ def filter_first_visits(df, radius=10.0):
 
     return df[mask].reset_index(drop=True)
 
+def process_dataset(base_path, RUNS_FOLDER, folder, site):
+    run_path = os.path.join(RUNS_FOLDER, site, folder)
+    if not os.path.exists(run_path):
+        return False  
+    with open(os.path.join(run_path, FILENAME), 'w', newline='') as file:
+        escritor_csv = csv.writer(file)
+        escritor_csv.writerow(['timestamp', 'northing', 'easting'])
+
+
+        scan_data = pd.read_csv(
+            os.path.join(base_path, RUNS_FOLDER, site, folder, POINTCLOUD_TS, FILENAME),
+            sep=','
+        )
+        gps_data = pd.read_csv(
+            os.path.join(base_path, RUNS_FOLDER, site, folder, GPS_FOLS, FILENAME),
+            sep=','
+        )
+        # files = os.listdir(os.path.join(run_path, POINTCLOUD_FOLS))
+
+        UTMx, UTMy = gps2utm(gps_data, site)
+        gps_times = gps_data['#timestamp [ns]']
+        ref_times, _ = sample_gps(deltaxy=0.5, UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
+
+        scan_times, _, _ = get_closest_data(scan_data, ref_times)
+        _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm')
+        
+        for ts, (x, y) in zip(scan_times, utm_pos):
+            escritor_csv.writerow([ts, x, y])
+
+    return True
+
+def process_locations(base_path, RUNS_FOLDER, folder, site, P, df_train, df_test):
+    run_path = os.path.join(RUNS_FOLDER, site, folder)
+    if not os.path.exists(run_path):
+        return df_train, df_test 
+    
+    df_locations = pd.read_csv(
+        os.path.join(base_path, RUNS_FOLDER, site, folder, FILENAME),
+        sep=','
+    )
+
+    df_locations['timestamp'] = (
+        os.path.join(RUNS_FOLDER, site, folder, POINTCLOUD_FOLS) +
+        df_locations['timestamp'].astype(str) + '.csv'
+    )
+    df_locations = df_locations.rename(columns={'timestamp': 'file'})
+
+    # train/test
+    for _, row in df_locations.iterrows():
+        if check_in_test_set(row['northing'], row['easting'], P):
+            df_test = pd.concat([df_test, pd.DataFrame([row])], ignore_index=True)
+        else:
+            df_train = pd.concat([df_train, pd.DataFrame([row])], ignore_index=True)
+
+    return df_train, df_test
+
 if __name__ == '__main__':
     print('Dataset root: {}'.format(PARAMS.dataset_folder))
     base_path = PARAMS.dataset_folder
@@ -189,40 +245,8 @@ if __name__ == '__main__':
     df_train = pd.DataFrame(columns=['file', 'northing', 'easting'])
     df_test = pd.DataFrame(columns=['file', 'northing', 'easting'])
     for folder in tqdm.tqdm(folders):
-        if os.path.exists(RUNS_FOLDER+"ktima/"+folder):
-            run_path = RUNS_FOLDER+"ktima/"+folder
-            with open(run_path+"/"+FILENAME, 'w', newline='') as file:
-                escritor_csv = csv.writer(file)
-                escritor_csv.writerow(['timestamp','northing','easting'])
-                scan_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "ktima/", folder, POINTCLOUD_TS, FILENAME), sep=',')
-                files = os.listdir(run_path+"/"+POINTCLOUD_FOLS)
-                gps_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "ktima/", folder, GPS_FOLS, FILENAME), sep=',')
-                UTMx, UTMy = gps2utm(gps_data, 'ktima')
-                gps_times = gps_data['#timestamp [ns]']
-                ref_times, _ = sample_gps(deltaxy=0.5,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
-                scan_times, _, _ = get_closest_data(scan_data, ref_times)
-                _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm')
-                ind = 0
-                for ts in scan_times:
-                    escritor_csv.writerow([ts,utm_pos[ind][0],utm_pos[ind][1]])
-                    ind += 1
-        elif os.path.exists(RUNS_FOLDER+"riseholme/"+folder):
-            run_path = RUNS_FOLDER+"riseholme/"+folder
-            with open(run_path+"/"+FILENAME, 'w', newline='') as file:
-                escritor_csv = csv.writer(file)
-                escritor_csv.writerow(['timestamp','northing','easting'])
-                scan_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "riseholme/", folder, POINTCLOUD_TS, FILENAME), sep=',')
-                gps_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "riseholme/", folder, GPS_FOLS, FILENAME), sep=',')
-                files = os.listdir(run_path+"/"+POINTCLOUD_FOLS)
-                UTMx, UTMy = gps2utm(gps_data, 'riseholme')
-                gps_times = gps_data['#timestamp [ns]']
-                ref_times, _ = sample_gps(deltaxy=0.5,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
-                scan_times, _, _ = get_closest_data(scan_data, ref_times)
-                _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm')
-                ind = 0
-                for ts in scan_times:
-                    escritor_csv.writerow([ts,utm_pos[ind][0],utm_pos[ind][1]])
-                    ind += 1
+        if not process_dataset(base_path, RUNS_FOLDER, folder, "ktima"):
+            process_dataset(base_path, RUNS_FOLDER, folder, "riseholme")
         used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
         unused_scans = list(set(files) - set(used_scans))
         print(f"Len used: {len(used_scans)}")
@@ -234,30 +258,12 @@ if __name__ == '__main__':
                 os.remove(run_path + POINTCLOUD_FOLS + f)
             except Exception as e:
                 print(f"Error deleting {f}: {e}")"""
-    iter = 0
+    
     for folder in tqdm.tqdm(folders):
         if os.path.exists(RUNS_FOLDER + "ktima/" + folder):
-            df_locations = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "ktima/", folder, FILENAME), sep=',')
-            #df_locations = filter_first_visits(df_locations, radius=2.0)
-            df_locations['timestamp'] = RUNS_FOLDER + "ktima/" + folder + POINTCLOUD_FOLS + df_locations['timestamp'].astype(str) + '.csv'
-            df_locations = df_locations.rename(columns={'timestamp': 'file'})
-
-            for index, row in df_locations.iterrows():
-                if check_in_test_set(row['northing'], row['easting'], P_K): # iter == (len(all_folders) - 1)
-                    df_test = df_test.append(row, ignore_index=True)
-                else:
-                    df_train = df_train.append(row, ignore_index=True)
+            df_train, df_test = process_locations(base_path, RUNS_FOLDER, folder, "ktima", P_K, df_train, df_test)
         elif os.path.exists(RUNS_FOLDER + "riseholme/" + folder):
-            df_locations = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, "riseholme/", folder, FILENAME), sep=',')
-            df_locations['timestamp'] = RUNS_FOLDER + "riseholme/" + folder + POINTCLOUD_FOLS + df_locations['timestamp'].astype(str) + '.csv'
-            df_locations = df_locations.rename(columns={'timestamp': 'file'})
-
-            for index, row in df_locations.iterrows():
-                if check_in_test_set(row['northing'], row['easting'], P_R): # iter == (len(all_folders) - 1)
-                    df_test = df_test.append(row, ignore_index=True)
-                else:
-                    df_train = df_train.append(row, ignore_index=True)
-        iter += 1
+            df_train, df_test = process_locations(base_path, RUNS_FOLDER, folder, "riseholme", P_R, df_train, df_test)
 
     print("Number of training submaps: " + str(len(df_train['file'])))
     print("Number of non-disjoint test submaps: " + str(len(df_test['file'])))
