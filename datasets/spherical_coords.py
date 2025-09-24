@@ -1,3 +1,4 @@
+# Judith Vilella Cantos. Miguel Hernández University of Elche.
 import numpy as np
 
 class SphericalCoords:
@@ -5,7 +6,7 @@ class SphericalCoords:
         spherical_points = []
         if dataset_name == "vmd":
             # Cartesian to spherical conversion
-            #APPROACH A
+            #APPROACH A: Conventional projection to polar space
             """r = np.linalg.norm(points, axis=1)
             mask_distance = r <= 5.0
 
@@ -14,7 +15,8 @@ class SphericalCoords:
             r_sel = r[mask_distance]
             theta = np.degrees(np.arctan2(y, x))  # horizontal
             phi = np.degrees(np.arcsin(z / r_sel)) - 38  # vertical"""
-            #APPROACH B
+            
+            #APPROACH B: Spherical projection with a custom FoV that imitates the robotic platform's POV
             if points.shape[-1] == 4:
                 x, y, z, intensity = points.T
             else:
