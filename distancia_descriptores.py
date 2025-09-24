@@ -7,6 +7,7 @@ import pandas as pd
 import ast
 from sklearn.cluster import MeanShift, AffinityPropagation, DBSCAN, AgglomerativeClustering, KMeans, SpectralClustering
 from sklearn.mixture import GaussianMixture
+from sklearn.metrics import silhouette_score, davies_bouldin_score, normalized_mutual_info_score, adjusted_rand_score
 import matplotlib.pyplot as plt
 from model.minkunext import model
 from config import PARAMS
@@ -164,7 +165,7 @@ def plot_clusters(mapa, cluster):
     # plt.gca().set_aspect('equal') #, adjustable='box')
     # plt.savefig("clustering_arvc.png")
     # plt.savefig('clustering_arvc.jpg', format='jpg', dpi=300)
-    plt.savefig('descriptores-kitti_0051.png', transparent=True, dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.savefig('descriptores-vmd-rows1-3.png', transparent=True, dpi=300, bbox_inches='tight', pad_inches=0)
     """TODO: Plot clusters in map
     lats, lons = utm.to_latlon(xmap, ymap)
     gmap = CustomGoogleMapPlotter(lats[0], lons[0], initial_zoom, map_type='satellite')
@@ -187,8 +188,15 @@ def load_descriptors(file_training, file_test, vineyard, test_mode=False):
         torch.cuda.set_device(device)
     else:
         device = "cpu"
+
     model.to(device)
-    model.load_state_dict(torch.load("/media/arvc/HDD4TB1/Judith/MinkUNeXt-main/weights/MinkUNeXt_usyd_20250218_0857_final.pth"))
+    model.load_state_dict(torch.load("/media/arvc/HDD4TB1/Judith/MinkUNeXt-main/weights/MinkUNeXt_vmd_20250701_1750_final.pth"))
+    """model_V, model_P = model, model
+    model_V.to(device)
+    model_P.to(device)
+
+    model_V.load_state_dict(torch.load("/media/arvc/HDD4TB1/Judith/MinkUNeXt-main/weights/MinkUNeXt_vmd_20250609_1110_final.pth"))
+    model_P.load_state_dict(torch.load("/media/arvc/HDD4TB1/Judith/MinkUNeXt-main/weights/MinkUNeXt_vmd_20250611_0937_final.pth"))"""
     #model.cpu()
     i=0
     route = ""
@@ -205,16 +213,16 @@ def load_descriptors(file_training, file_test, vineyard, test_mode=False):
                 route_selected = True
             if route in scan_file_path:
                 #CSV
-                """df = pd.read_csv(scan_file_path)
+                df = pd.read_csv(scan_file_path)
                 points = df[["x", "y", "z"]].to_numpy()
-                intensity = df["intensity"].to_numpy()"""
-                dtype=np.float32
-                #dtype=np.float64
+                intensity = df["intensity"].to_numpy()
+                """#dtype=np.float32
+                dtype=np.float64
                 #dtype = np.dtype([('x', '<H'), ('y', '<H'), ('z', '<H'), ('intensity', 'B'), ('label', 'B')])
                 pc = np.fromfile(scan_file_path, dtype=dtype).reshape([-1, 4])
                 #pc = np.fromfile(scan_file_path, dtype=dtype)
                 points = pc[:, :3]
-                intensity = pc[:, 3]
+                intensity = pc[:, 3]"""
                 #points = np.stack([pc['x'] * 0.005 - 100, pc['y'] * 0.005 - 100, -(pc['z'] * 0.005 - 100)], axis=-1)
 
                 #intensity =  pc['intensity']
@@ -235,6 +243,7 @@ def load_descriptors(file_training, file_test, vineyard, test_mode=False):
                     d = model(batch)
                     #print(d.keys())
                     #print(d['global'].cpu().detach().numpy()[0])
+                    # descriptors.append(d['clustering'].F.cpu().detach().numpy()[0]) 
                     descriptors.append(d['global'].cpu().detach().numpy()[0])
                     #print(i)
                     i += 1
@@ -247,16 +256,16 @@ def load_descriptors(file_training, file_test, vineyard, test_mode=False):
             #if vineyard in scan_file_path and route in scan_file_path:
             if route in scan_file_path:
                 #CSV
-                """df = pd.read_csv(scan_file_path)
+                df = pd.read_csv(scan_file_path)
                 points = df[["x", "y", "z"]].to_numpy()
-                intensity = df["intensity"].to_numpy()"""
-                dtype=np.float32
-                #dtype=np.float64
+                intensity = df["intensity"].to_numpy()
+                """#dtype=np.float32
+                dtype=np.float64
                 #dtype = np.dtype([('x', '<H'), ('y', '<H'), ('z', '<H'), ('intensity', 'B'), ('label', 'B')])
                 pc = np.fromfile(scan_file_path, dtype=dtype).reshape([-1, 4])
                 #pc = np.fromfile(scan_file_path, dtype=dtype)
                 points = pc[:, :3]
-                intensity = pc[:, 3]
+                intensity = pc[:, 3]"""
                 #points = np.stack([pc['x'] * 0.005 - 100, pc['y'] * 0.005 - 100, (pc['z'] * 0.005 - 100)], axis=-1)
 
                 #intensity =  pc['intensity']
@@ -278,7 +287,7 @@ def load_descriptors(file_training, file_test, vineyard, test_mode=False):
                     d = model(batch)
                     #print(d.keys())
                     #print(d['global'].cpu().detach().numpy()[0])
-                
+                    #descriptors.append(d['clustering'].F.cpu().detach().numpy()[0]) 
                     descriptors.append(d['global'].cpu().detach().numpy()[0])
                     #print(i)
                     i += 1
@@ -383,20 +392,20 @@ def load_descriptors(file_training, file_test, vineyard, test_mode=False):
 
 
 if __name__ == '__main__':
-    poses, descriptors = load_descriptors('training_queries_kitti.pickle', 'test_queries_kitti.pickle', 'ktima')
+    poses, descriptors = load_descriptors('training_queries_vmd_feb-july_VLP_vineyard.pickle', 'test_queries_vmd_feb-july_VLP_vineyard.pickle', 'ktima')
     #print(descriptors[0])
-    N = 6
-    m = 6
+    N = 4
+    m = 4
     clusters = N * m
-    # Oxford
-    clusters = 7
-    cent, etiquetas = cl_kmeans(descriptors, clusters)
+    # KITTI
+    #clusters = 6
+    cent, labels = cl_kmeans(descriptors, clusters)
+    silhouette = silhouette_score(descriptors, labels)
+    db_index = davies_bouldin_score(descriptors, labels)
+    
+    print(f"Silhouette score: {silhouette}")
+    print(f"Davis-Bouldin index: {db_index}")
+    #nmi = normalized_mutual_info_score(poses, labels)
+    #ari = adjusted_rand_score(poses, labels)
 
-    # cent, etiquetas = cl_mean_shift(descriptors)
-    # cent, etiquetas = cl_debscan(descriptors)
-    # cent, etiquetas = cl_sc(descriptors)
-    # cent, etiquetas = cl_ap(descriptors)
-    # cent, etiquetas = cl_gmm(descriptors)
-    # cent, etiquetas = cl_ahc(descriptors)
-
-    plot_clusters(poses, etiquetas)
+    plot_clusters(poses, labels)
