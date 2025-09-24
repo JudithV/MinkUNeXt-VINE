@@ -1,5 +1,5 @@
-dataset_folder: '/media/arvc/HDD4TB1/Judith/MinkUNeXt-main' # '/home/arvc/Judith/MinkUNeXt-main'
-cuda_device: 'cuda:1' # 'cuda:0' or 'cuda:1'
+dataset_folder: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main/' # '/home/arvc/Judith/MinkUNeXt-main'
+cuda_device: 'cuda:0' # 'cuda:0' or 'cuda:1'
 
 patience: 40
 min_delta: 0.001
@@ -15,21 +15,24 @@ val_batch_size: 4 # 32
 
 format_point_cloud: 'csv' #'bin' | 'csv'
 
-spherical_coords: True
-use_intensity: True
+spherical_coords: False
+normalize: True
+use_intensity: False
 process_intensity: False
-equalize_intensity: True
-correct_intensity: True
-use_downsampled: True
+equalize_intensity: False
+correct_intensity: False
+use_downsampled: False
 min_distance: 2
-max_distance: 40
+max_distance: 15 # 60
+
+use_2D: False # BLT 2D LiDAR
 
 optimizer: 'Adam' # Adam or AdamW
 initial_lr: 0.001
 scheduler: 'MultiStepLR' # MultiStepLR or CosineAnnealingLR or Null
 aug_mode: 1 # 1 if yes
 weight_decay: 0.0001
-loss: 'BatchHardContrastiveLoss' #'TruncatedSmoothAP' or 'BatchHardTripletMarginLoss' or 'BatchHardContrastiveLoss'
+loss: 'TruncatedSmoothAP' #'TruncatedSmoothAP' or 'BatchHardTripletMarginLoss' or 'BatchHardContrastiveLoss'
 
 margin: Null
 tau1: 0.01
@@ -88,18 +91,18 @@ usyd:
   val_file: usyd_test_queries.pickle
 
 blt:
-  epochs: 200 # 40 / 400
-  scheduler_milestones: [75, 150] #[30] / [250, 350]
+  epochs: 75 # 200
+  scheduler_milestones: [25, 50] #[75, 150]
   num_points: 23000
-  train_file: training_queries_blt_pruebas.pickle
-  val_file: test_queries_blt_pruebas.pickle
+  train_file: train_test_sets/blt/training_queries_blt_Ktima_2D.pickle
+  val_file: train_test_sets/blt/test_queries_blt_Ktima_2D.pickle
 
 vmd:
-  epochs: 100 
-  scheduler_milestones: [50, 75]
+  epochs: 75
+  scheduler_milestones: [25, 50]
   num_points: 23000
-  train_file: training_queries_vmd_feb_Livox.pickle
-  val_file: test_queries_vmd_feb_Livox.pickle
+  train_file: train_test_sets/vmd/training_queries_vmd_run3_07-09_VELO.pickle
+  val_file: train_test_sets/vmd/test_queries_vmd_run3_07-09_VELO.pickle
 
 print:
   model_info: True
@@ -107,4 +110,4 @@ print:
   debug: False
 
 evaluate:
-  weights_path: '/media/arvc/HDD4TB1/Judith/MinkUNeXt-main/weights/MinkUNeXt_vmd_20250526_1522_final.pth'
+  weights_path: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main/weights/MinkUNeXt_vmd_20250922_1153_final.pth'
