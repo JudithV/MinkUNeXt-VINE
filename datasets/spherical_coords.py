@@ -1,4 +1,6 @@
 # Judith Vilella Cantos. Miguel Hernández University of Elche.
+# Code adapted from the MinkLoc3D-SI repository (https://github.com/KamilZywanowski/MinkLoc3D-SI) 
+# to apply to more datasets used in our work.
 import numpy as np
 
 class SphericalCoords:
