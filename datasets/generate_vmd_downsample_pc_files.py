@@ -64,7 +64,7 @@ def reduce_resolution(points, intensity):
     pcd.points = o3d.utility.Vector3dVector(points)
 
     pcd = pcd.voxel_down_sample(voxel_size=0.01)
-    #pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=200, std_ratio=0.01)
+    pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=200, std_ratio=0.01)
     pcd, ind = dror_filter(pcd.points)
     points = np.asarray(pcd.points)
 
@@ -74,25 +74,31 @@ def reduce_resolution(points, intensity):
     points = points[idx]
     intensity = intensity[idx]
     points = np.concatenate((points, intensity[:, np.newaxis]), axis=1)
-    points = SphericalCoords.to_spherical(points, "vmd")
+    #points = SphericalCoords.to_spherical(points, "vmd")
     intensity = exposure.equalize_hist(points[:, 3])
 
     return points[:, :3], intensity
 
 if __name__ == '__main__':
     for folder in os.listdir(input_folder):
-        folder_to_process = os.path.join(input_folder,folder,"pointcloud/lidar3d_1")
+        folder_to_process = os.path.join(input_folder,folder,"pointcloud/lidar3d_0")
         for file_name in os.listdir(folder_to_process):
             if file_name.endswith(".csv"):
-                input_path = os.path.join(input_folder,folder,"pointcloud/lidar3d_1", file_name)
-                output_path = os.path.join(output_folder,folder,"pointcloud/lidar3d_1", file_name)
+                input_path = os.path.join(input_folder,folder,"pointcloud/lidar3d_0", file_name)
+                output_folder_part = os.path.join(output_folder,folder,"pointcloud/lidar3d_0")
+                output_path = os.path.join(output_folder_part, file_name)
+                #output_path = output_path.replace(".bin", "_NO_SP.csv")
 
+                os.makedirs(output_folder_part, exist_ok=True)
                 # Leer nube de puntos
                 df = pd.read_csv(input_path)
+                #pc = read_bin(input_path)
                 df = df.query('x != 0 and y != 0 and z != 0 and intensity != 0')
 
                 points = df[['x', 'y', 'z']].values
                 intensity = df['intensity'].values
+                #points = pc[:, :3]
+                #intensity = pc[:, 3]
                 # Reducir resolución
                 points, intensity = reduce_resolution(points, intensity)
                 if points.size > 0:
