@@ -1,4 +1,5 @@
-# Code taken from MinkLoc3Dv2 repo: https://github.com/jac99/MinkLoc3Dv2.git
+# Judith Vilella Cantos. Miguel Hernández University of Elche.
+# Code adapted from MinkLoc3Dv2 repo: https://github.com/jac99/MinkLoc3Dv2.git
 
 import numpy as np
 from typing import List
@@ -58,7 +59,7 @@ def make_collate_fn(dataset: TrainingDataset, quantizer,batch_split_size=None):
     def collate_fn(data_list):
         # Constructs a batch object
 
-        #CON REFLECTIVIDAD
+        # USE INTENSITY
         if PARAMS.use_intensity:
             clouds = [e[0]['cloud'] for e in data_list]
             reflecs = [e[0]['reflec'] for e in data_list]
@@ -90,21 +91,6 @@ def make_collate_fn(dataset: TrainingDataset, quantizer,batch_split_size=None):
                 coords.append(quatizated[0])
                 feats.append(quatizated[1])
 
-            """feats_composed = []
-            feats_composed2 = []
-            for feat in feats:
-                for i, f in enumerate(feat.numpy()):
-                    feats_composed2.append(redondeo_personalizado(f, 0.3))
-                    if f <= 0.1:
-                        feats_composed2.append([1,1,0,0]) # Reflectividad baja
-                    elif 0.1 < f < 0.5:
-                        feats_composed2.append([1,0,1,0]) # Reflectividad media
-                    else:
-                        feats_composed2.append([1,0,0,1]) # Reflectividad alta
-                feats_composed2 = torch.tensor(feats_composed2, dtype=torch.float32)
-                feats_composed2 = feats_composed2.reshape([-1, 1])
-                feats_composed.append(feats_composed2)
-                feats_composed2 = []"""
             if batch_split_size is None or batch_split_size == 0:
                 coords = ME.utils.batched_coordinates(coords)
                 unos = torch.ones((coords.shape[0], 1), dtype=torch.float32)
