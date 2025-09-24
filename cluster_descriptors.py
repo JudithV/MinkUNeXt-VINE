@@ -1,3 +1,4 @@
+# Judith Vilella Cantos. Miguel Hernández University of Elche.
 import numpy as np
 import os
 import pickle
