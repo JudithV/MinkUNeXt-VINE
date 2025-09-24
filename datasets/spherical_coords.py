@@ -15,29 +15,36 @@ class SphericalCoords:
             theta = np.degrees(np.arctan2(y, x))  # horizontal
             phi = np.degrees(np.arcsin(z / r_sel)) - 38  # vertical"""
             #APPROACH B
-            x, y, z = points.T
+            if points.shape[-1] == 4:
+                x, y, z, intensity = points.T
+            else:
+                x, y, z = points.T
+                intensity = None
             mask_region = (x >= 0) & (x <= 10) & (y >= -2.5) & (y <= 2.5)
 
             x_sel, y_sel, z_sel = x[mask_region], y[mask_region], z[mask_region]
+            if intensity is not None:
+                intensity = intensity[mask_region]
             r = np.sqrt(x_sel**2 + y_sel**2 + z_sel**2)
 
-            # Conversión a esféricas
-            theta = np.degrees(np.arctan2(y_sel, x_sel))       # Ángulo horizontal
-            phi = np.degrees(np.arccos(z_sel / r)) - 38        # Ángulo vertical corregido
+            # Spherical conversion
+            theta = np.degrees(np.arctan2(y_sel, x_sel))       # Horizontal
+            phi = np.degrees(np.arccos(z_sel / r)) - 38        # Vertical
 
 
             # New FoV(90° × 120°)
             theta_min, theta_max = -45, 45  # Horizontal (90°)
             phi_min, phi_max = -60, 60     # Vertical (120°)
-
             # Filters
             mask_theta = (theta >= theta_min) & (theta <= theta_max)
             mask_phi = (phi >= phi_min) & (phi <= phi_max)
             mask_fov = mask_theta & mask_phi
-
             # Apply masks
             # Original: r[mask_fov], theta[mask_fov], phi[mask_fov]
-            spherical_coords = np.stack((r[mask_fov], theta[mask_fov], phi[mask_fov]), axis=1)
+            if points.shape[-1] == 4:
+                spherical_points = np.stack((r[mask_fov], theta[mask_fov], phi[mask_fov], intensity[mask_fov]), axis=1)
+            else:
+                spherical_points = np.stack((r[mask_fov], theta[mask_fov], phi[mask_fov]), axis=1)
         else:
             for point in points:
                 if (np.abs(point[:3]) < 1e-4).all():
