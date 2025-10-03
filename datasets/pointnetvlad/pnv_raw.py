@@ -169,7 +169,10 @@ class PNVPointCloudLoader(PointCloudLoader):
                 pcd.points = o3d.utility.Vector3dVector(points)
                 points = self.global_normalize(pcd)
             #print(len(points)) # Number of points in cloud
-            intensity = df["intensity"].to_numpy()
+            if PARAMS.protocol == 'blt' and PARAMS.use_2D:
+                intensity = np.zeros(len(df))
+            else:
+                intensity = df["intensity"].to_numpy()
             if PARAMS.correct_intensity:
                 intensity = self.correct_intensity(points, intensity)
             if not PARAMS.use_downsampled:

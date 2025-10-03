@@ -29,15 +29,15 @@ P_R = [P19, P20]
 
 RUNS_FOLDER = "blt/"
 FILENAME = "data.csv"
-POINTCLOUD_TS = "robot0/lidar"
-POINTCLOUD_FOLS = "robot0/lidar/data"
+POINTCLOUD_TS = "robot0/lidar_2d_submap_10m"
+POINTCLOUD_FOLS = "robot0/lidar_2d_submap_10m" #/data
 GPS_FOLS = "robot0/gps0"
 
 ZONE_KTIMA = 34
 ZONE_RISEHOLME = 30
 LIDAR_2D = True
 
-def construct_query_dict(df_centroids, base_path, filename, ind_nn_r, ind_r_r=17): # ind_r_r=12
+def construct_query_dict(df_centroids, base_path, filename, ind_nn_r, ind_r_r=12): # ind_r_r=12
     # ind_nn_r: threshold for positive examples
     # ind_r_r: threshold for negative examples
     # Baseline dataset parameters in the original PointNetVLAD code: ind_nn_r=10, ind_r=50
@@ -191,10 +191,11 @@ def process_dataset(base_path, RUNS_FOLDER, folder, site):
         UTMx, UTMy = gps2utm(gps_data, site)
         gps_times = gps_data['#timestamp [ns]']
         ref_times, _ = sample_gps(deltaxy=0.5,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
-        scan_times, _, _ = get_closest_data(scan_data, ref_times)
-        _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm')
+        #scan_times, _, _ = get_closest_data(scan_data, gps_times) # scan_data, ref_times
+        print(scan_data)
+        _, utm_pos, _ = get_closest_data(gps_data, scan_data['#timestamp [ns]'], gps_mode='utm') #gps_data, scan_times
         ind = 0
-        print("\n=== DEPURACIÓN DE SCAN TIMES ===")
+        """print("\n=== DEPURACIÓN DE SCAN TIMES ===")
         print(f"Total ficheros en carpeta: {len(files)}")
         print(f"Total scan_times devueltos: {len(scan_times)}")
 
@@ -210,13 +211,13 @@ def process_dataset(base_path, RUNS_FOLDER, folder, site):
         print(f"Coincidencias exactas: {len(coinciden)} / {len(scan_times)}")
 
         # 4. Revisa duplicados en scan_times
-        print(f"Duplicados en scan_times: {len(scan_times) - len(set(scan_times))}")
+        print(f"Duplicados en scan_times: {len(scan_times) - len(set(scan_times))}")"""
 
-        for ts in scan_times:
+        for ts in scan_data['#timestamp [ns]']: # ts in scan_times
             escritor_csv.writerow([ts, utm_pos[ind][0], utm_pos[ind][1]])
             ind += 1
 
-    return True, scan_times
+    return True, scan_data['#timestamp [ns]'] # True scan_times
 
 def process_locations(base_path, RUNS_FOLDER, folder, site, P, df_train, df_test):
     run_path = os.path.join(RUNS_FOLDER, site, folder)
@@ -229,7 +230,7 @@ def process_locations(base_path, RUNS_FOLDER, folder, site, P, df_train, df_test
     )
 
     df_locations['timestamp'] = (
-        os.path.join(RUNS_FOLDER, site, folder, POINTCLOUD_FOLS) +
+        os.path.join(RUNS_FOLDER, site, folder, POINTCLOUD_FOLS) + "/" +
         df_locations['timestamp'].astype(str) + '.csv'
     )
     df_locations = df_locations.rename(columns={'timestamp': 'file'})
@@ -282,14 +283,14 @@ if __name__ == '__main__':
             except Exception as e:
                 print(f"Error deleting {f}: {e}")"""
     
-    """for folder in tqdm.tqdm(folders):
+    for folder in tqdm.tqdm(folders):
         if os.path.exists(RUNS_FOLDER + "ktima/" + folder):
             df_train, df_test = process_locations(base_path, RUNS_FOLDER, folder, "ktima", P_K, df_train, df_test)
         elif os.path.exists(RUNS_FOLDER + "riseholme/" + folder):
             df_train, df_test = process_locations(base_path, RUNS_FOLDER, folder, "riseholme", P_R, df_train, df_test)
 
     print("Number of training submaps: " + str(len(df_train['file'])))
-    print("Number of non-disjoint test submaps: " + str(len(df_test['file'])))"""
+    print("Number of non-disjoint test submaps: " + str(len(df_test['file'])))
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    #construct_query_dict(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D.pickle", ind_nn_r=5) # ind_nn_r=5
-    #construct_query_dict(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D.pickle", ind_nn_r=5) # ind_nn_r=5
+    construct_query_dict(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_2D_submap_10m.pickle", ind_nn_r=5) # ind_nn_r=5
+    construct_query_dict(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_2D_submap_10m.pickle", ind_nn_r=5) # ind_nn_r=5
