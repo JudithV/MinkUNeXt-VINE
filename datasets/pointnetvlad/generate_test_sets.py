@@ -89,7 +89,7 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
         df_test = pd.DataFrame(columns=['file', 'northing', 'easting'])
 
         df_locations = pd.read_csv(os.path.join(base_path, runs_folder, folder, filename), sep=',')
-
+        i = 0
         #df_locations = filter_first_visits(df_locations, radius=2.0)
         #df_locations['timestamp']=runs_folder+folder+pointcloud_fols+df_locations['timestamp'].astype(str)+'.bin'
         #df_locations=df_locations.rename(columns={'timestamp':'file'})
@@ -97,10 +97,15 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
             if output_name == "vmd":
                 if check_in_test_set(row['easting'], row['northing'], p):
                     df_test = df_test.append(row, ignore_index=True)
+                """if i % 2 == 0:
+                    df_test = df_test.append(row, ignore_index=True)"""
+                """if "run2" in folder:
+                    df_test = df_test.append(row, ignore_index=True)"""
             else:
                 if check_in_test_set(row['northing'], row['easting'], p):
                     df_test = df_test.append(row, ignore_index=True)
             df_database = df_database.append(row, ignore_index=True)
+            i += 1
             #df_database = pd.concat([df_database, pd.DataFrame([row])], ignore_index=True)
         database_tree = KDTree(df_database[['northing', 'easting']])
         database_trees.append(database_tree)
@@ -114,9 +119,11 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
     database_sets = []
     ind = 0
     lidar_i = 0
+    i = 0
     for folder in folders:
         database = {}
         test = {}
+        i = 0
         df_locations = pd.read_csv(os.path.join(base_path, runs_folder, folder, filename), sep=',')
         if output_name == 'blt' or output_name == 'vmd':
             df_locations['timestamp'] = runs_folder + folder + pointcloud_fols + df_locations['timestamp'].astype(str) + '.csv' 
@@ -128,12 +135,17 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
             if output_name == "vmd":
                 if check_in_test_set(row['easting'], row['northing'], p):
                     test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}
+                """if i % 2 == 0:
+                    test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}"""
+                """if "run2" in folder:
+                    test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}"""
             else:
                 if check_in_test_set(row['northing'], row['easting'], p):
                     test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}
        
             database[len(database.keys())] = {'query': row['file'], 'northing': row['northing'],
                                               'easting': row['easting']}
+            i += 1
         database_sets.append(database)
         #if ind == (len(all_folders) - 1):
         if len(test) > 0:
@@ -190,7 +202,9 @@ if __name__ == '__main__':
     #all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "pergola/"))) + sorted(os.listdir(os.path.join(base_path, runs_folder + "vineyard/")))
     all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "vineyard/")))
     for folder in all_folders:
-        if "run2_03_p" in folder or "run3" not in folder:
+        if "run2_02_p" in folder: #run3
+            continue
+        if "10" not in folder:
             continue
         if os.path.exists(os.path.join(base_path, runs_folder + "pergola/" + folder)):
             folders.append("pergola/"+folder)

@@ -1,10 +1,10 @@
 dataset_folder: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main/' # '/home/arvc/Judith/MinkUNeXt-main'
-cuda_device: 'cuda:0' # 'cuda:0' or 'cuda:1'
+cuda_device: 'cuda:1' # 'cuda:0' or 'cuda:1'
 
 patience: 40
 min_delta: 0.001
 
-quantization_size: 0.01  # esfericas: [0.1,2.0,1.875] [m,deg,deg]; cartesianas: 0.01 [m,m,m]
+quantization_size: 0.01  # esfericas: [2.5,2.0,1.875], [0.1,2.0,1.875] [m,deg,deg]; cartesianas: 0.01 [m,m,m]
 num_workers: 0
 batch_size: 2048 #128 / --> 2048
 batch_size_limit: 2048  #128 / --> 2048
@@ -16,14 +16,14 @@ val_batch_size: 4 # 32
 format_point_cloud: 'csv' #'bin' | 'csv'
 
 spherical_coords: False
-normalize: True
+normalize: False
 use_intensity: False
 process_intensity: False
 equalize_intensity: False
 correct_intensity: False
 use_downsampled: False
 min_distance: 2
-max_distance: 15 # 60
+max_distance: 60 # 60
 
 use_2D: False # BLT 2D LiDAR
 
@@ -91,18 +91,18 @@ usyd:
   val_file: usyd_test_queries.pickle
 
 blt:
-  epochs: 75 # 200
-  scheduler_milestones: [25, 50] #[75, 150]
+  epochs: 200 # 75
+  scheduler_milestones: [75, 150] #[25, 50]
   num_points: 23000
-  train_file: train_test_sets/blt/training_queries_blt_Ktima_2D.pickle
-  val_file: train_test_sets/blt/test_queries_blt_Ktima_2D.pickle
+  train_file: train_test_sets/blt/training_queries_blt_Ktima_3D.pickle
+  val_file: train_test_sets/blt/test_queries_blt_Ktima_3D.pickle
 
 vmd:
-  epochs: 75
-  scheduler_milestones: [25, 50]
+  epochs: 200 # 75
+  scheduler_milestones: [75, 150] # [25, 50]
   num_points: 23000
-  train_file: train_test_sets/vmd/training_queries_vmd_run3_07-09_VELO.pickle
-  val_file: train_test_sets/vmd/test_queries_vmd_run3_07-09_VELO.pickle
+  train_file: train_test_sets/vmd/training_queries_vmd_sept_zones_VELO.pickle
+  val_file: train_test_sets/vmd/test_queries_vmd_sept_zones_VELO.pickle
 
 print:
   model_info: True
@@ -110,4 +110,4 @@ print:
   debug: False
 
 evaluate:
-  weights_path: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main/weights/MinkUNeXt_vmd_20250922_1153_final.pth'
+  weights_path: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main/weights/MinkUNeXt_vmd_20251029_0924_final.pth'

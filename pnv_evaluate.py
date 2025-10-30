@@ -3,6 +3,7 @@
 
 from sklearn.neighbors import KDTree
 import numpy as np
+import pandas as pd
 import pickle
 import os
 import torch
@@ -20,9 +21,9 @@ from datasets.quantization import quantizer
 def evaluate(model, device, log: bool = False, show_progress: bool = False):
     # Run evaluation on all eval datasets
 
-    eval_database_files = ['minkloc_vmd_evaluation_database.pickle']
+    eval_database_files = ['train_test_sets/vmd/minkloc_vmd_evaluation_database.pickle']
 
-    eval_query_files = ['minkloc_vmd_evaluation_query.pickle']
+    eval_query_files = ['train_test_sets/vmd/minkloc_vmd_evaluation_query.pickle']
 
     assert len(eval_database_files) == len(eval_query_files)
 
@@ -54,6 +55,7 @@ def evaluate_dataset(model, device, database_sets, query_sets, log: bool = False
     recall = np.zeros(25) # 5, 10, 25
     count = 0
     one_percent_recall = []
+    query_results = []
 
     database_embeddings = []
     query_embeddings = []
@@ -70,15 +72,16 @@ def evaluate_dataset(model, device, database_sets, query_sets, log: bool = False
         for j in range(len(query_sets)):
             if i == j: 
                 continue
-            pair_recall, pair_opr = get_recall(i, j, database_embeddings, query_embeddings, query_sets,
+            pair_recall, pair_opr, query_results_pairs = get_recall(i, j, database_embeddings, query_embeddings, query_sets,
                                                database_sets, log=log)
+            query_results.extend(query_results_pairs)
             recall += np.array(pair_recall)
             count += 1
             one_percent_recall.append(pair_opr)
 
     ave_recall = recall / count
     ave_one_percent_recall = np.mean(one_percent_recall)
-    stats = {'ave_one_percent_recall': ave_one_percent_recall, 'ave_recall': ave_recall}
+    stats = {'ave_one_percent_recall': ave_one_percent_recall, 'ave_recall': ave_recall, 'query_results': query_results}
     return stats
 
 
@@ -95,7 +98,7 @@ def get_latent_vectors(model, set, device):
     embeddings = None
     path = "/media/arvc/HDD4TB1/Judith/MinkUNeXt-main/KittiDataset"
     for i, elem_ndx in enumerate(set):
-        pc_file_path = os.path.join(PARAMS.dataset_folder + "/", set[elem_ndx]["query"]) # KITTI: "query_velo"; otros: "query" .replace('.bin', '.csv')
+        pc_file_path = os.path.join(PARAMS.dataset_folder, set[elem_ndx]["query"]) # + "/" KITTI: "query_velo"; otros: "query" .replace('.bin', '.csv')
         #pc_file_path = os.path.join(path + "/", set[elem_ndx]["query_velo"])
         pc = pc_loader(pc_file_path)
         cloud = torch.tensor(pc['cloud'], dtype=torch.float)
@@ -195,6 +198,7 @@ def get_recall(m, n, database_vectors, query_vectors, query_sets, database_sets,
     threshold = max(int(round(len(database_output)/100.0)), 1)
 
     num_evaluated = 0
+    query_results = []
     for i in range(len(queries_output)):
         # i is query element ndx
         query_details = query_sets[n][i]    # {'query': path, 'northing': , 'easting': }
@@ -205,6 +209,21 @@ def get_recall(m, n, database_vectors, query_vectors, query_sets, database_sets,
 
         # Find nearest neightbours
         distances, indices = database_nbrs.query(np.array([queries_output[i]]), k=num_neighbors)
+
+        top1_correct = indices[0][0] in true_neighbors
+        correct_at_5 = len(set(indices[0][:5]).intersection(set(true_neighbors))) > 0
+        correct_at_10 = len(set(indices[0][:10]).intersection(set(true_neighbors))) > 0
+        correct_at_25 = len(set(indices[0][:25]).intersection(set(true_neighbors))) > 0
+
+        query_results.append({
+            'query_path': query_details['query'],
+            'northing': query_details['northing'],
+            'easting': query_details['easting'],
+            'correct@1': top1_correct,
+            'correct@5': correct_at_5,
+            'correct@10': correct_at_10,
+            'correct@25': correct_at_25
+        })
 
         if log:
             # Log false positives (returned as the first element) for Oxford dataset
@@ -260,7 +279,7 @@ def get_recall(m, n, database_vectors, query_vectors, query_sets, database_sets,
 
     one_percent_recall = (one_percent_retrieved/float(num_evaluated))*100
     recall = (np.cumsum(recall)/float(num_evaluated))*100
-    return recall, one_percent_recall
+    return recall, one_percent_recall, query_results
 
 
 def print_eval_stats(stats):
@@ -312,5 +331,14 @@ if __name__ == "__main__":
     model_name = os.path.splitext(model_name)[0]
     prefix = "{}, {}".format(PARAMS.protocol, model_name)
     pnv_write_eval_stats("results.txt", prefix, stats)
+    save_predictions = False
+
+    if save_predictions:
+        for ds, result in stats.items():
+            if 'query_results' in result:
+                df = pd.DataFrame(result['query_results'])
+                out_path = f"query_results_{ds}.csv"
+                df.to_csv(out_path, index=False)
+                print(f"Saved per-query results to {out_path}")
 
 

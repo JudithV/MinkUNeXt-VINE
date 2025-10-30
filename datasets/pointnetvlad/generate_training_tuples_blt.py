@@ -17,7 +17,7 @@ from sklearn.neighbors import KDTree
 import pickle
 import utm
 import tqdm
-
+import random
 
 from datasets.base_datasets import TrainingTuple
 # Import test set boundaries
@@ -29,8 +29,8 @@ P_R = [P19, P20]
 
 RUNS_FOLDER = "blt/"
 FILENAME = "data.csv"
-POINTCLOUD_TS = "robot0/lidar_2d_submap_10m"
-POINTCLOUD_FOLS = "robot0/lidar_2d_submap_10m" #/data
+POINTCLOUD_TS = "robot0/lidar_3d"
+POINTCLOUD_FOLS = "robot0/lidar_3d/data" #/data
 GPS_FOLS = "robot0/gps0"
 
 ZONE_KTIMA = 34
@@ -71,6 +71,24 @@ def construct_query_dict(df_centroids, base_path, filename, ind_nn_r, ind_r_r=12
         pickle.dump(queries, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     print("Done ", filename)
+
+def construct_query_dict_pnv(df_centroids, base_path, filename):
+    tree = KDTree(df_centroids[['northing','easting']])
+    ind_nn = tree.query_radius(df_centroids[['northing','easting']],r=5)
+    ind_r = tree.query_radius(df_centroids[['northing','easting']], r=12)
+    queries = {}
+    for i in range(len(ind_nn)):
+        query = df_centroids.iloc[i]["file"]
+        positives = np.setdiff1d(ind_nn[i],[i]).tolist()
+        negatives = np.setdiff1d(df_centroids.index.values.tolist(),ind_r[i]).tolist()
+        random.shuffle(negatives)
+        queries[i] = {"query":query, "positives":positives,"negatives":negatives}
+    file_path = os.path.join(base_path, filename)
+    with open(file_path, 'wb') as handle:
+        pickle.dump(queries, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print("Done ", filename)
+
 
 def get_df_at_times(file_name, df_data, time_list, time_pcs):
     """
@@ -190,10 +208,10 @@ def process_dataset(base_path, RUNS_FOLDER, folder, site):
         gps_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, site, folder, GPS_FOLS, FILENAME), sep=',')
         UTMx, UTMy = gps2utm(gps_data, site)
         gps_times = gps_data['#timestamp [ns]']
-        ref_times, _ = sample_gps(deltaxy=0.5,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
-        #scan_times, _, _ = get_closest_data(scan_data, gps_times) # scan_data, ref_times
-        print(scan_data)
-        _, utm_pos, _ = get_closest_data(gps_data, scan_data['#timestamp [ns]'], gps_mode='utm') #gps_data, scan_times
+        ref_times, _ = sample_gps(deltaxy=1.0,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
+        scan_times, _, _ = get_closest_data(scan_data, ref_times) # scan_data, ref_times
+        #print(scan_data)
+        _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm') #gps_data, scan_times
         ind = 0
         """print("\n=== DEPURACIÓN DE SCAN TIMES ===")
         print(f"Total ficheros en carpeta: {len(files)}")
@@ -213,7 +231,7 @@ def process_dataset(base_path, RUNS_FOLDER, folder, site):
         # 4. Revisa duplicados en scan_times
         print(f"Duplicados en scan_times: {len(scan_times) - len(set(scan_times))}")"""
 
-        for ts in scan_data['#timestamp [ns]']: # ts in scan_times
+        for ts in scan_times: # ts in scan_times
             escritor_csv.writerow([ts, utm_pos[ind][0], utm_pos[ind][1]])
             ind += 1
 
@@ -292,5 +310,8 @@ if __name__ == '__main__':
     print("Number of training submaps: " + str(len(df_train['file'])))
     print("Number of non-disjoint test submaps: " + str(len(df_test['file'])))
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    construct_query_dict(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_2D_submap_10m.pickle", ind_nn_r=5) # ind_nn_r=5
-    construct_query_dict(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_2D_submap_10m.pickle", ind_nn_r=5) # ind_nn_r=5
+    construct_query_dict(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D.pickle", ind_nn_r=5) # ind_nn_r=5
+    construct_query_dict(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D.pickle", ind_nn_r=5) # ind_nn_r=5
+
+    #construct_query_dict_pnv(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D_PNV.pickle") # ind_nn_r=5
+    #construct_query_dict_pnv(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D_PNV.pickle")

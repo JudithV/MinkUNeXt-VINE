@@ -268,9 +268,9 @@ if __name__ == '__main__':
     run_path = ""
     
     for folder in tqdm.tqdm(folders):
-        if "run2_03_p" in folder: # "lidar3d_1" in POINTCLOUD_FOLS and //  or "run3" not in folder
+        if "run2_02_p" in folder: # "lidar3d_1" in POINTCLOUD_FOLS and //  or "run3" not in folder
             continue
-        if "run3" not in folder:
+        if "10" not in folder: # run3
             continue
         files, scantimes_pcds, ref_times, scan_times, utm_pos = [], [], [], [], []
         if os.path.exists(base_path+RUNS_FOLDER+"pergola/"+folder):
@@ -309,29 +309,30 @@ if __name__ == '__main__':
                 escritor_csv.writerow([ts,utm_pos[ind][1],utm_pos[ind][0],segment_id[ind],type_data[ind]])
                 ind += 1
             # Delete unused scans that were excluded by the sampling in order to free disk space
-            used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
+            """used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
             unused_scans = list(set(files) - set(used_scans))
             print(f"Len used: {len(used_scans)}")
             print(f"Len unused: {len(unused_scans)}")
             print(f"Total files: {len(files)}")
 
-            """for f in unused_scans:
+            for f in unused_scans:
                 try:
                     os.remove(os.path.join(run_path, POINTCLOUD_FOLS, f))
                 except Exception as e:
                     print(f"Error deleting {f}: {e}")"""
             
-    iter = 0
+    i = 0
     for folder in tqdm.tqdm(folders):
         df_triplet = pd.DataFrame(columns=['file', 'northing', 'easting'])
         if "run2_03_p" in folder: # "lidar3d_1" in POINTCLOUD_FOLS and //  or "run3" not in folder
             continue
-        if "run3" not in folder: # Current experiments considering only loop-closure enriched scenario.
+        if "10" not in folder: # run3: Current experiments considering only loop-closure enriched scenario.
             continue
         if os.path.exists(RUNS_FOLDER + "pergola/" + folder):
             run_path = os.path.join(RUNS_FOLDER,"pergola",folder)
         elif os.path.exists(RUNS_FOLDER + "vineyard/" + folder):
             run_path = os.path.join(RUNS_FOLDER,"vineyard",folder)
+        i = 0
         df_locations = pd.read_csv(os.path.join(base_path, run_path, FILENAME), sep=',')
         df_locations['timestamp'] = df_locations['timestamp'].astype(str).apply(lambda x: os.path.join(run_path, POINTCLOUD_FOLS, x + '.csv'))
         total_rows = len(df_locations)
@@ -343,7 +344,15 @@ if __name__ == '__main__':
                 df_test = df_test.append(row, ignore_index=True)
             else:
                 df_train = df_train.append(row, ignore_index=True)
-        iter += 1
+            """if "run2" in folder:
+                df_test = df_test.append(row, ignore_index=True)
+            else:
+                df_train = df_train.append(row, ignore_index=True)"""
+            """if i % 2 == 0:
+                df_test = df_test.append(row, ignore_index=True)
+            else:
+                df_train = df_train.append(row, ignore_index=True)"""
+            i += 1
 
     print("Number of training submaps: " + str(len(df_train['file'])))
     print("Number of non-disjoint test submaps: " + str(len(df_test['file'])))
@@ -353,8 +362,8 @@ if __name__ == '__main__':
     print("Vineyard count in test: ", df_test["file"].str.count("vineyard").sum())
 
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    train_queries = construct_query_dict(df_train, base_path+"/train_test_sets/vmd", "training_queries_vmd_run3_07-09_VELO.pickle")
+    train_queries = construct_query_dict(df_train, base_path+"/train_test_sets/vmd", "training_queries_vmd_sept_zones_VELO.pickle")
     #plot_split_for_anchor(df_train, train_queries, "scans_train_set.png")
-    test_queries = construct_query_dict(df_test, base_path+"/train_test_sets/vmd", "test_queries_vmd_run3_07-09_VELO.pickle")
-    #plot_split_for_anchor(df_test, test_queries, "scans_test_set.png")
+    test_queries = construct_query_dict(df_test, base_path+"/train_test_sets/vmd", "test_queries_vmd_sept_zones_VELO.pickle")
+    #plot_split_for_anchor(df_test, test_queries, "scans_test_set.png")"""
 

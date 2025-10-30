@@ -18,7 +18,7 @@ def distancia_punto_a_segmento(px, py, x1, y1, x2, y2):
     return np.linalg.norm(A - closest)
 
 # Cargar CSV y convertir coordenadas
-df = pd.read_csv('vmd/vineyard/run3_09_v/gps.csv')
+df = pd.read_csv('vmd/vineyard/run1_10_v/gps.csv')
 utm_coords = np.array([utm.from_latlon(lat, lon)[:2] for lat, lon in zip(df['latitude'], df['longitude'])])
 x_coords, y_coords = utm_coords[:, 0], utm_coords[:, 1]
 
@@ -88,4 +88,4 @@ for i, (px, py) in enumerate(zip(main_axis[interior], perp_axis[interior])):
 
 
 df['segment'], df['type'] = segment_labels, "V"
-df.to_csv('vmd/vineyard/run3_09_v/gps.csv', index=False)
+df.to_csv('vmd/vineyard/run1_10_v/gps.csv', index=False)
