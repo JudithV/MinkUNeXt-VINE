@@ -35,17 +35,17 @@ GPS_FOLS = "robot0/gps0"
 
 ZONE_KTIMA = 34
 ZONE_RISEHOLME = 30
-LIDAR_2D = True
+LIDAR_2D = False
+USE_SEGMENT = False
 
-def construct_query_dict(df_centroids, base_path, filename, ind_nn_r, ind_r_r=12): # ind_r_r=12
-    # ind_nn_r: threshold for positive examples
-    # ind_r_r: threshold for negative examples
-    # Baseline dataset parameters in the original PointNetVLAD code: ind_nn_r=10, ind_r=50
-    # Refined dataset parameters in the original PointNetVLAD code: ind_nn_r=12.5, ind_r=50
-    tree = KDTree(df_centroids[['northing', 'easting']])
-    ind_nn = tree.query_radius(df_centroids[['northing', 'easting']], r=ind_nn_r)
-    ind_r = tree.query_radius(df_centroids[['northing', 'easting']], r=ind_r_r)
+def construct_query_dict(df_centroids, base_path, filename):
     queries = {}
+    tree = KDTree(df_centroids[['northing', 'easting']])
+    coords = df_centroids[['northing', 'easting']].values
+    segments = df_centroids['segment'].values
+    ind_nn = tree.query_radius(df_centroids[['northing', 'easting']], r=5) # r=7
+    ind_r = tree.query_radius(df_centroids[['northing', 'easting']], r=12) # r=15
+    # ORIGINAL:
     for anchor_ndx in range(len(ind_nn)):
         anchor_pos = np.array(df_centroids.iloc[anchor_ndx][['northing', 'easting']])
         query = df_centroids.iloc[anchor_ndx]["file"]
@@ -54,23 +54,34 @@ def construct_query_dict(df_centroids, base_path, filename, ind_nn_r, ind_r_r=12
         assert os.path.splitext(scan_filename)[1] == '.csv', f"Expected .csv file: {scan_filename}"
         timestamp = int(os.path.splitext(scan_filename)[0])
 
+        # Conventional positives and non-negatives division by distance
         positives = ind_nn[anchor_ndx]
         non_negatives = ind_r[anchor_ndx]
 
         positives = positives[positives != anchor_ndx]
+        """if USE_SEGMENT:
+            anchor_segment = segments[anchor_ndx]
+            positives = [p for p in positives if segments[p] == anchor_segment]"""
         # Sort ascending order
         positives = np.sort(positives)
         non_negatives = np.sort(non_negatives)
 
         # Tuple(id: int, timestamp: int, rel_scan_filepath: str, positives: List[int], non_negatives: List[int])
-        queries[anchor_ndx] = TrainingTuple(id=anchor_ndx, timestamp=timestamp, rel_scan_filepath=query,
-                                            positives=positives, non_negatives=non_negatives, position=anchor_pos)
+        if USE_SEGMENT:
+            anchor_segment = segments[anchor_ndx]
+            queries[anchor_ndx] = TrainingTuple(id=anchor_ndx, timestamp=timestamp, rel_scan_filepath=query,
+                                                positives=positives, non_negatives=non_negatives, position=anchor_pos, segment=anchor_segment)
+        else:
+            queries[anchor_ndx] = TrainingTuple(id=anchor_ndx, timestamp=timestamp, rel_scan_filepath=query,
+                                            positives=positives, non_negatives=non_negatives, position=anchor_pos, segment=-1)
 
     file_path = os.path.join(base_path, filename)
     with open(file_path, 'wb') as handle:
         pickle.dump(queries, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    print("Done ", filename)
+    print("Done", filename)
+    return queries
+
 
 def construct_query_dict_pnv(df_centroids, base_path, filename):
     tree = KDTree(df_centroids[['northing','easting']])
@@ -116,16 +127,17 @@ def gps2utm(df_gps, zone_name):
 
     return UTMx, UTMy
 
-def sample_gps(deltaxy, UTMx, UTMy, timestamp):
-    gps_times = []
+def sample_gps(deltaxy, UTMx, UTMy, s, timestamp):
+    gps_times, segments = [], []
     utm_positions = []
     gpsi = gpsi1 = gps = []
     for ind in timestamp.index:
         gps = np.array([UTMx[ind], UTMy[ind]])
         current_time = timestamp[ind]
-        if ind == 0: 
+        if ind == 0:
             gps_times.append(current_time)
             utm_positions.append([UTMx[ind], UTMy[ind]])
+            segments.append(s[ind])
             gpsi = gps
 
         gpsi1 = gps
@@ -133,8 +145,10 @@ def sample_gps(deltaxy, UTMx, UTMy, timestamp):
         if dxy > deltaxy:
             gps_times.append(current_time)
             utm_positions.append([UTMx[ind], UTMy[ind]])
+            segments.append(s[ind])
             gpsi = gpsi1
-    return np.array(gps_times), np.array(utm_positions)
+    return np.array(gps_times), np.array(utm_positions), np.array(segments)
+
 
 def get_closest_data(df_data, time_list, gps_mode='utm'):
     positions = []
@@ -203,12 +217,12 @@ def process_dataset(base_path, RUNS_FOLDER, folder, site):
         return False, None  
     with open(os.path.join(run_path, FILENAME), 'w', newline='') as file:
         escritor_csv = csv.writer(file)
-        escritor_csv.writerow(['timestamp','northing','easting'])
+        escritor_csv.writerow(['timestamp','northing','easting', 'segment'])
         scan_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, site, folder, "scan_times.csv"), sep=',')
         gps_data = pd.read_csv(os.path.join(base_path, RUNS_FOLDER, site, folder, GPS_FOLS, FILENAME), sep=',')
         UTMx, UTMy = gps2utm(gps_data, site)
         gps_times = gps_data['#timestamp [ns]']
-        ref_times, _ = sample_gps(deltaxy=1.0,UTMx=UTMx, UTMy=UTMy, timestamp=gps_times)
+        ref_times, _, segment_id = sample_gps(deltaxy=1.0,UTMx=UTMx, UTMy=UTMy, s=gps_data['segment'], timestamp=gps_times)
         scan_times, _, _ = get_closest_data(scan_data, ref_times) # scan_data, ref_times
         #print(scan_data)
         _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm') #gps_data, scan_times
@@ -232,7 +246,7 @@ def process_dataset(base_path, RUNS_FOLDER, folder, site):
         print(f"Duplicados en scan_times: {len(scan_times) - len(set(scan_times))}")"""
 
         for ts in scan_times: # ts in scan_times
-            escritor_csv.writerow([ts, utm_pos[ind][0], utm_pos[ind][1]])
+            escritor_csv.writerow([ts, utm_pos[ind][0], utm_pos[ind][1], segment_id[ind]])
             ind += 1
 
     return True, scan_data['#timestamp [ns]'] # True scan_times
@@ -281,6 +295,8 @@ if __name__ == '__main__':
     df_train = pd.DataFrame(columns=['file', 'northing', 'easting'])
     df_test = pd.DataFrame(columns=['file', 'northing', 'easting'])
     for folder in tqdm.tqdm(folders):
+        if "2022-09-" not in folder and "2022-10-" not in folder:
+            continue
         process, scan_times = process_dataset(base_path, RUNS_FOLDER, folder, "ktima")
         run_path = os.path.join(base_path, RUNS_FOLDER, "ktima", folder) + "/"
         files = os.listdir(os.path.join(base_path,RUNS_FOLDER, "ktima", folder, POINTCLOUD_FOLS))
@@ -302,6 +318,8 @@ if __name__ == '__main__':
                 print(f"Error deleting {f}: {e}")"""
     
     for folder in tqdm.tqdm(folders):
+        if "2022-09-" not in folder and "2022-10-" not in folder:
+            continue
         if os.path.exists(RUNS_FOLDER + "ktima/" + folder):
             df_train, df_test = process_locations(base_path, RUNS_FOLDER, folder, "ktima", P_K, df_train, df_test)
         elif os.path.exists(RUNS_FOLDER + "riseholme/" + folder):
@@ -310,8 +328,8 @@ if __name__ == '__main__':
     print("Number of training submaps: " + str(len(df_train['file'])))
     print("Number of non-disjoint test submaps: " + str(len(df_test['file'])))
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    construct_query_dict(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D.pickle", ind_nn_r=5) # ind_nn_r=5
-    construct_query_dict(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D.pickle", ind_nn_r=5) # ind_nn_r=5
+    #construct_query_dict(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D_segment.pickle") # ind_nn_r=5
+    #construct_query_dict(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D_segment.pickle") # ind_nn_r=5
 
-    #construct_query_dict_pnv(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D_PNV.pickle") # ind_nn_r=5
-    #construct_query_dict_pnv(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D_PNV.pickle")
+    construct_query_dict_pnv(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D_PNV_autumn.pickle") # ind_nn_r=5
+    construct_query_dict_pnv(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D_PNV_autumn.pickle")

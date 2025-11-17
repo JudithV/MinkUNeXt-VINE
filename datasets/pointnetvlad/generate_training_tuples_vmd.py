@@ -31,7 +31,7 @@ P = [P26, P27, P28, P29]
 RUNS_FOLDER = "vmd/"
 FILENAME_GPS = "gps.csv"
 FILENAME = "data.csv"
-POINTCLOUD_FOLS = "pointcloud/lidar3d_0/"
+POINTCLOUD_FOLS = "pointcloud/lidar3d_1/"
 USE_GPS = True
 USE_SEGMENT = False
 
@@ -98,7 +98,7 @@ def construct_query_dict(df_centroids, base_path, filename,
     coords = df_centroids[['northing', 'easting']].values
     type_run = df_centroids['type'].values
     segments = df_centroids['segment'].values
-    ind_nn = tree.query_radius(df_centroids[['northing', 'easting']], r=10) # r=7
+    ind_nn = tree.query_radius(df_centroids[['northing', 'easting']], r=7) # r=7
     ind_r = tree.query_radius(df_centroids[['northing', 'easting']], r=15) # r=15
     # ORIGINAL:
     for anchor_ndx in range(len(ind_nn)):
@@ -309,13 +309,13 @@ if __name__ == '__main__':
                 escritor_csv.writerow([ts,utm_pos[ind][1],utm_pos[ind][0],segment_id[ind],type_data[ind]])
                 ind += 1
             # Delete unused scans that were excluded by the sampling in order to free disk space
-            """used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
+            used_scans = [str(scan).strip() + ".csv" for scan in scan_times]
             unused_scans = list(set(files) - set(used_scans))
             print(f"Len used: {len(used_scans)}")
             print(f"Len unused: {len(unused_scans)}")
             print(f"Total files: {len(files)}")
 
-            for f in unused_scans:
+            """for f in unused_scans:
                 try:
                     os.remove(os.path.join(run_path, POINTCLOUD_FOLS, f))
                 except Exception as e:
@@ -340,18 +340,18 @@ if __name__ == '__main__':
         df_locations = df_locations.rename(columns={'timestamp': 'file'})
 
         for index, row in df_locations.iterrows():
-            if check_in_test_set(row['easting'], row['northing'], P): # iter == (len(all_folders) - 1)
+            """if check_in_test_set(row['easting'], row['northing'], P): # iter == (len(all_folders) - 1)
                 df_test = df_test.append(row, ignore_index=True)
             else:
-                df_train = df_train.append(row, ignore_index=True)
+                df_train = df_train.append(row, ignore_index=True)"""
             """if "run2" in folder:
                 df_test = df_test.append(row, ignore_index=True)
             else:
                 df_train = df_train.append(row, ignore_index=True)"""
-            """if i % 2 == 0:
+            if i % 2 == 0:
                 df_test = df_test.append(row, ignore_index=True)
             else:
-                df_train = df_train.append(row, ignore_index=True)"""
+                df_train = df_train.append(row, ignore_index=True)
             i += 1
 
     print("Number of training submaps: " + str(len(df_train['file'])))
@@ -362,8 +362,8 @@ if __name__ == '__main__':
     print("Vineyard count in test: ", df_test["file"].str.count("vineyard").sum())
 
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    train_queries = construct_query_dict(df_train, base_path+"/train_test_sets/vmd", "training_queries_vmd_sept_zones_VELO.pickle")
+    train_queries = construct_query_dict(df_train, base_path+"/train_test_sets/vmd", "training_queries_vmd_sept_sampled_Livox.pickle")
     #plot_split_for_anchor(df_train, train_queries, "scans_train_set.png")
-    test_queries = construct_query_dict(df_test, base_path+"/train_test_sets/vmd", "test_queries_vmd_sept_zones_VELO.pickle")
+    test_queries = construct_query_dict(df_test, base_path+"/train_test_sets/vmd", "test_queries_vmd_sept_sampled_Livox.pickle")
     #plot_split_for_anchor(df_test, test_queries, "scans_test_set.png")"""
 

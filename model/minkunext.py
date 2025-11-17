@@ -299,6 +299,9 @@ class MinkUNeXt(ResNetBase):
         if PARAMS.clustering_head:
             clustering = self.clustering_head(out)
             return {'global': descriptor, 'clustering': clustering }
+        if PARAMS.labeling_head:
+            labeling = self.clustering_head(out)
+            return {'global': descriptor, 'labeling': labeling }
 
         return {'global': descriptor}
 
@@ -310,7 +313,7 @@ class Mish(nn.Module):
         result = x.F * torch.tanh(F.softplus(x.F))
         return ME.SparseTensor(result, coordinate_map_key=x.coordinate_map_key, coordinate_manager=x.coordinate_manager)
 
-class ClusteringHead(nn.Module):
+"""class ClusteringHead(nn.Module):
     def __init__(self, in_features):
         super(ClusteringHead, self).__init__()
         self.conv1 = ME.MinkowskiConvolution(in_features, 32, kernel_size=3, stride=2, dimension=3)
@@ -320,6 +323,7 @@ class ClusteringHead(nn.Module):
         self.mish2 = Mish()
 
         self.conv3 = ME.MinkowskiConvolution(32, 3, kernel_size=1, stride=2, dimension=3)
+        self.pool = ME.MinkowskiGlobalAvgPooling()
     
     def forward(self, x):
         x = self.conv1(x)
@@ -329,7 +333,31 @@ class ClusteringHead(nn.Module):
         x = self.mish2(x)
 
         x = self.conv3(x)
-        return x
+        x = self.pool(x)
+        return x # x.F"""
+class ClusteringHead(nn.Module):
+    def __init__(self, in_features, out_dim=64):
+        super().__init__()
+
+        self.conv1 = ME.MinkowskiConvolution(in_features, 64, kernel_size=3, stride=1, dimension=3)
+        self.bn1 = ME.MinkowskiBatchNorm(64)
+        self.act1 = ME.MinkowskiReLU()
+
+        self.conv2 = ME.MinkowskiConvolution(64, 64, kernel_size=3, stride=1, dimension=3)
+        self.bn2 = ME.MinkowskiBatchNorm(64)
+        self.act2 = ME.MinkowskiReLU()
+
+        # proyección a embedding
+        self.conv3 = ME.MinkowskiConvolution(64, out_dim, kernel_size=1, stride=1, dimension=3)
+
+        self.pool = ME.MinkowskiGlobalAvgPooling()
+
+    def forward(self, x):
+        x = self.act1(self.bn1(self.conv1(x)))
+        x = self.act2(self.bn2(self.conv2(x)))
+        x = self.conv3(x)
+        x = self.pool(x)
+        return x # F.normalize(x.F, dim=1)  # vector [B, out_dim]
 
 model = MinkUNeXt(in_channels=1, out_channels=512, D=3)
 
