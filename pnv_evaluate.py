@@ -318,7 +318,9 @@ if __name__ == "__main__":
         device = "cpu"
     print('Device: {}'.format(device))
     
-    model.load_state_dict(torch.load(PARAMS.weights_path, map_location=device))
+    state_dict = torch.load(PARAMS.weights_path, map_location=device)
+
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
 
     model.to(device)
 

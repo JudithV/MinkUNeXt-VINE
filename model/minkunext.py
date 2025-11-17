@@ -357,7 +357,9 @@ class ClusteringHead(nn.Module):
         x = self.act2(self.bn2(self.conv2(x)))
         x = self.conv3(x)
         x = self.pool(x)
-        return x # F.normalize(x.F, dim=1)  # vector [B, out_dim]
+        emb = x.F                      # take dense tensor
+        emb = torch.nn.functional.normalize(emb, dim=1)
+        return emb                     # [B, out_dim] dense normalized tens
 
 model = MinkUNeXt(in_channels=1, out_channels=512, D=3)
 

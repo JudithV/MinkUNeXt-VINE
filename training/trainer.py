@@ -61,12 +61,18 @@ def training_step(global_iter, model, phase, device, optimizer, loss_fn):
         if PARAMS.clustering_head:
             distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
             loss_fn_cluster = BatchHardContrastiveLossWithMasks(pos_margin=PARAMS.pos_margin, neg_margin=PARAMS.neg_margin, distance=distance)
-            clustering = y['clustering'].F
+            clustering = y['clustering']
             if clustering.shape[0] > PARAMS.cluster_batch_size:
                 idx = torch.randperm(clustering.shape[0])[:PARAMS.cluster_batch_size]
-                clustering = clustering[idx]
-                positives_mask = positives_mask[idx][:, idx]
-                negatives_mask = negatives_mask[idx][:, idx]
+                clustering_sub = clustering[idx]
+                positives_mask_sub = positives_mask[idx][:, idx]
+                negatives_mask_sub = negatives_mask[idx][:, idx]
+            else:
+                clustering_sub = clustering
+                positives_mask_sub = positives_mask
+                negatives_mask_sub = negatives_mask
+
+
             loss_clust, _ = loss_fn_cluster(clustering, positives_mask, negatives_mask)
             lambda_clust = PARAMS.clustering_importance
             loss = loss + lambda_clust * loss_clust
@@ -116,7 +122,7 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
                 memory_usage_saved = True
             embeddings_l.append(y['global'])
             if PARAMS.clustering_head:
-                clustering_l.append(y['clustering'].F)
+                clustering_l.append(y['clustering'])
 
     torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
 
@@ -128,10 +134,21 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
     with torch.set_grad_enabled(phase == 'train'):
         if phase == 'train':
             embeddings.requires_grad_(True)
+
+        # Loss global embeddings
         loss, stats = loss_fn(embeddings, positives_mask, negatives_mask)
+        stats = tensors_to_numbers(stats)
+
+        # Clustering loss
         if PARAMS.clustering_head:
             distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
-            loss_fn_cluster = BatchHardContrastiveLossWithMasks(pos_margin=PARAMS.pos_margin, neg_margin=PARAMS.neg_margin, distance=distance)
+            loss_fn_cluster = BatchHardContrastiveLossWithMasks(
+                pos_margin=PARAMS.pos_margin,
+                neg_margin=PARAMS.neg_margin,
+                distance=distance
+            )
+
+            # Subsample si es necesario
             if clustering.shape[0] > PARAMS.cluster_batch_size:
                 max_id = min(clustering.shape[0], positives_mask.shape[0])
                 idx = torch.randperm(max_id)[:PARAMS.cluster_batch_size]
@@ -142,21 +159,23 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
                 clustering_sub = clustering
                 positives_mask_sub = positives_mask
                 negatives_mask_sub = negatives_mask
+
             loss_clust, _ = loss_fn_cluster(clustering_sub, positives_mask_sub, negatives_mask_sub)
+            total_loss = loss + PARAMS.clustering_importance * loss_clust
+        else:
+            total_loss = loss
 
-            loss = loss + PARAMS.clustering_importance * loss_clust
-        stats = tensors_to_numbers(stats)
+        # Backward único
         if phase == 'train':
-            loss.backward()
-            embeddings_grad = embeddings.grad
+            total_loss.backward()
+            embeddings_grad = embeddings.grad  # Para Stage 3
 
-    # Delete intermediary values
+    # Limpiar memoria
     embeddings_l, embeddings, y, loss = None, None, None, None
     if PARAMS.clustering_head:
         clustering_l, clustering = None, None
 
-    # Stage 3 - recompute descriptors with gradient enabled and compute the gradient of the loss w.r.t.
-    # network parameters using cached gradient of the loss w.r.t embeddings
+    # ---------------- Stage 3 ----------------
     if phase == 'train':
         optimizer.zero_grad()
         i = 0
@@ -165,30 +184,56 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
                 minibatch = {e: minibatch[e].to(device) for e in minibatch}
                 y = model(minibatch)
                 embeddings = y['global']
-                minibatch_size = len(embeddings)
-                # Compute gradients of network params w.r.t. the loss using the chain rule (using the
-                # gradient of the loss w.r.t. embeddings stored in embeddings_grad)
-                # By default gradients are accumulated
-                embeddings.backward(gradient=embeddings_grad[i: i+minibatch_size])
-                """if PARAMS.clustering_head:
-                    embeddings.backward(gradient=embeddings_grad[i: i+minibatch_size], retain_graph=True)
-                    distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
-                    loss_fn_cluster = BatchHardContrastiveLossWithMasks(pos_margin=PARAMS.pos_margin, neg_margin=PARAMS.neg_margin, distance=distance)
-                    clustering = y['clustering'].F
-                    if clustering.shape[0] > PARAMS.cluster_batch_size:
-                        idx = torch.randperm(clustering.shape[0])[:PARAMS.cluster_batch_size]
-                        clustering = clustering[idx]
-                        positives_mask = positives_mask[idx][:, idx]
-                        negatives_mask = negatives_mask[idx][:, idx]
+                minibatch_size = embeddings.shape[0]
 
-                    loss_clust = loss_fn_cluster(clustering, positives_mask, negatives_mask)
-                    loss_clust.backward()"""
+                # Aplicar gradiente calculado de Stage 2
+                embeddings.backward(gradient=embeddings_grad[i: i+minibatch_size], retain_graph=True)
+
+                # Clustering head
+                if PARAMS.clustering_head:
+                    clustering_out = y['clustering']
+
+                    positives_mask_mb = positives_mask_sub[i:i+minibatch_size, i:i+minibatch_size]
+                    negatives_mask_mb = negatives_mask_sub[i:i+minibatch_size, i:i+minibatch_size]
+                    if positives_mask_mb.numel() == 0 or positives_mask_mb.sum() == 0:
+                        i += minibatch_size
+                        continue
+
+                    # Subsample seguro por minibatch
+                    if minibatch_size > PARAMS.cluster_batch_size: # clustering_out.shape[0] > ...
+                        idx_sub = torch.randperm(clustering_out.shape[0])[:PARAMS.cluster_batch_size]
+                        clustering_out = clustering_out[idx_sub]
+                        #positives_mask_sub_batch = positives_mask_sub[idx_sub][:, idx_sub]
+                        #negatives_mask_sub_batch = negatives_mask_sub[idx_sub][:, idx_sub]
+                        positives_mask_mb = positives_mask_mb[idx_sub][:, idx_sub]
+                        negatives_mask_mb = negatives_mask_mb[idx_sub][:, idx_sub]
+                    """else:
+                        clustering_out_sub = clustering_out
+                        positives_mask_sub_batch = positives_mask_sub
+                        negatives_mask_sub_batch = negatives_mask_sub"""
+                    if positives_mask_mb.numel() == 0 or positives_mask_mb.sum() == 0:
+                        i += minibatch_size
+                        continue
+                    distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
+                    loss_fn_cluster = BatchHardContrastiveLossWithMasks(
+                        pos_margin=PARAMS.pos_margin,
+                        neg_margin=PARAMS.neg_margin,
+                        distance=distance
+                    )
+                    loss_clust, _ = loss_fn_cluster(
+                        clustering_out,
+                        positives_mask_mb, # positives_mask_sub_batch
+                        negatives_mask_mb # negatives_mask_sub_batch
+                    )
+
+                    # Backward único combinando con embeddings
+                    (PARAMS.clustering_importance * loss_clust).backward()
+
                 i += minibatch_size
 
             optimizer.step()
 
-    torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
-
+    torch.cuda.empty_cache()
     return stats, memory_allocated, memory_reserved
 
 
