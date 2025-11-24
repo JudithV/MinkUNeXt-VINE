@@ -103,8 +103,7 @@ def get_latent_vectors(model, set, device):
         pc = pc_loader(pc_file_path)
         cloud = torch.tensor(pc['cloud'], dtype=torch.float)
         reflec = torch.tensor(pc['reflec'], dtype=torch.float)
-        """print("Cloud: ", cloud)
-        print("Intensity: ", reflec)"""
+
         embedding = compute_embedding(model, cloud, reflec, device)
         if embeddings is None:
             print("Embeddings is NONE")
@@ -123,60 +122,38 @@ def redondeo_personalizado(numero, umbral=0.5):
 
 
 def compute_embedding(model, pc, reflec, device):
-    coords, _ = quantizer(pc)
-
     with torch.no_grad():
+
+        # reshape reflec to Nx1
         reflec = reflec.reshape([-1, 1])
-        quatizated = ME.utils.sparse_quantize(coordinates=pc.contiguous(), features=reflec,
-                                                  quantization_size=PARAMS.quantization_size)
-        coords = quatizated[0]
 
-        bcoords = ME.utils.batched_coordinates([coords]).to(device)
-        """ r_2 = []
-        for r in reflec:
-            if r == 0:
-                r_2.append(0)
-            else:
-                r_2.append(1)"""
-        # Crear tensor de unos con el mismo número de filas que bcoords
-        feats_unos = torch.ones((bcoords.shape[0], 1), dtype=torch.float32)
-        reflec = quatizated[1]
-        feats_composed = []
-        """for i, f in enumerate(reflec.numpy()):
-            feats_composed.append(redondeo_personalizado(f, 0.1))
-         if f <= 0.1:
-                feats_composed.append([1,1,0,0]) # Reflectividad baja
-            elif 0.1 < f < 0.5:
-                feats_composed.append([1,0,1,0]) # Reflectividad media
-            else:
-                feats_composed.append([1,0,0,1]) # Reflectividad alta
-        feats_composed = torch.tensor(feats_composed, dtype=torch.float32)
-        #feats_composed = torch.cat(feats_composed, dim=0)
-        feats_composed = feats_composed.unsqueeze(1)"""
-        # Verificar si reflec es una lista y concatenar si es necesario
-        if isinstance(reflec, list):
-            reflec = torch.cat(reflec, dim=0)
-        # Asegurarse de que reflec tiene dos dimensiones
-        if reflec.dim() == 1:
-            reflec = reflec.unsqueeze(1)
+        # Quantize point cloud
+        quantized_coords, quantized_feats = ME.utils.sparse_quantize(
+            coordinates=pc.contiguous(),
+            features=reflec,
+            quantization_size=PARAMS.quantization_size
+        )
 
-        feats_r = reflec
+        # Build batched coordinates
+        bcoords = ME.utils.batched_coordinates([quantized_coords]).to(device)
 
-        # Verificar que las dimensiones coinciden antes de la concatenación
-        if feats_unos.shape[0] != feats_r.shape[0]:
-            raise ValueError(f"Las dimensiones no coinciden: feats_unos tiene {feats_unos.shape[0]} filas, pero reflec tiene {feats_r.shape[0]} filas.")
-
-        # Concatenar feats_unos y feats_r a lo largo de la dimensión 1
-        feats_doble = torch.cat((feats_unos, feats_r), dim=1)
-        feats_uno_y_r = feats_unos + feats_r
-
-        # Preparar batch para el modelo
-        if PARAMS.use_intensity:
-            batch = {'coords': bcoords.to(device), 'features': feats_r.to(device)}
+        # ===== FEATURES =====
+        if not PARAMS.use_intensity:
+            # Use ones as feature vector, same shape as quantized coords
+            feats = torch.ones((quantized_coords.shape[0], 1), dtype=torch.float32)
         else:
-            batch = {'coords': bcoords.to(device), 'features': feats_unos.to(device)}
+            # Use intensity
+            feats = quantized_feats
+            if feats.dim() == 1:
+                feats = feats.unsqueeze(1)
 
-        # Compute global descriptor
+        # Pack batch
+        batch = {
+            'coords': bcoords,
+            'features': feats.to(device)
+        }
+
+        # Forward pass
         y = model(batch)
         embedding = y['global'].detach().cpu().numpy()
 

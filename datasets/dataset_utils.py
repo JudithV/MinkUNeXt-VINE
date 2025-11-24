@@ -63,6 +63,8 @@ def make_collate_fn(dataset: TrainingDataset, quantizer,batch_split_size=None):
         if PARAMS.use_intensity:
             clouds = [e[0]['cloud'] for e in data_list]
             reflecs = [e[0]['reflec'] for e in data_list]
+            if PARAMS.clustering_head:
+                segments = [e[0]['labels'] for e in data_list]
             labels = [e[1] for e in data_list]
             if dataset.set_transform is not None:
                 lens_c = [len(cloud) for cloud in clouds]
@@ -97,7 +99,10 @@ def make_collate_fn(dataset: TrainingDataset, quantizer,batch_split_size=None):
                 feats = torch.cat(feats, dim=0)
                 #feats_composed = torch.cat(feats_composed, dim=0)
                 feats_doble = torch.cat((unos, feats), dim = 1)
-                pointcloud_batch = {'coords': coords, 'features': feats}
+                if PARAMS.clustering_head:
+                    pointcloud_batch = {'coords': coords, 'features': feats, 'labels': segments}
+                else:
+                    pointcloud_batch = {'coords': coords, 'features': feats}
             else:
                 # Split the batch into chunks
                 pointcloud_batch = []
@@ -110,7 +115,12 @@ def make_collate_fn(dataset: TrainingDataset, quantizer,batch_split_size=None):
                     c = ME.utils.batched_coordinates(temp_coords)
                     unos = torch.ones((c.shape[0], 1), dtype=torch.float32)
                     f_2 = torch.cat((unos, feats_r), dim = 1)
-                    pointcloud_minibatch = {'coords': c, 'features': feats_r}
+                    if PARAMS.clustering_head:
+                        temp_labels = segments[i:i + batch_split_size]
+                        feats_l = torch.cat(temp_labels, dim=0)
+                        pointcloud_minibatch = {'coords': c, 'features': feats_r, 'labels': feats_l}
+                    else:
+                        pointcloud_minibatch = {'coords': c, 'features': feats_r}
                     pointcloud_batch.append(pointcloud_minibatch)
 
             return pointcloud_batch, positives_mask, negatives_mask

@@ -10,6 +10,7 @@ sys.path.append(parent_dir)
 from config import PARAMS 
 from trainer import *
 from model.minkunext import model
+#from model.segment_predictor import model_seg
 from losses.truncated_smoothap import TruncatedSmoothAP
 from losses.contrastive_loss import BatchHardContrastiveLossWithMasks
 import time
@@ -33,7 +34,6 @@ def do_train(model):
     model_name = 'MinkUNeXt_' + PARAMS.protocol + '_' + s
     weights_path = create_weights_folder()
     model_pathname = os.path.join(weights_path, model_name)
-    
     if PARAMS.print_model_info:
         print(model)
         n_params = sum([param.nelement() for param in model.parameters()])

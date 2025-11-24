@@ -297,13 +297,11 @@ class MinkUNeXt(ResNetBase):
         out = self.final(out)
         descriptor = self.GeM_pool(out)
         if PARAMS.clustering_head:
-            clustering = self.clustering_head(out)
-            return {'global': descriptor, 'clustering': clustering }
-        if PARAMS.labeling_head:
-            labeling = self.clustering_head(out)
-            return {'global': descriptor, 'labeling': labeling }
-
-        return {'global': descriptor}
+            # clustering_head now returns a dict {'emb': tensor(B, emb_dim), 'logits': tensor(B, num_labels)}
+            clust_out = self.clustering_head(out)
+            return {'global': descriptor, 'clustering_emb': clust_out['emb'], 'clustering_logits': clust_out['logits'] }
+        else:
+            return {'global': descriptor}
 
 class Mish(nn.Module):
     def __init__(self):
@@ -313,30 +311,8 @@ class Mish(nn.Module):
         result = x.F * torch.tanh(F.softplus(x.F))
         return ME.SparseTensor(result, coordinate_map_key=x.coordinate_map_key, coordinate_manager=x.coordinate_manager)
 
-"""class ClusteringHead(nn.Module):
-    def __init__(self, in_features):
-        super(ClusteringHead, self).__init__()
-        self.conv1 = ME.MinkowskiConvolution(in_features, 32, kernel_size=3, stride=2, dimension=3)
-        self.mish1 = Mish()
-        
-        self.conv2 = ME.MinkowskiConvolution(32, 32, kernel_size=3, stride=2, dimension=3)
-        self.mish2 = Mish()
-
-        self.conv3 = ME.MinkowskiConvolution(32, 3, kernel_size=1, stride=2, dimension=3)
-        self.pool = ME.MinkowskiGlobalAvgPooling()
-    
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.mish1(x)
-
-        x = self.conv2(x)
-        x = self.mish2(x)
-
-        x = self.conv3(x)
-        x = self.pool(x)
-        return x # x.F"""
 class ClusteringHead(nn.Module):
-    def __init__(self, in_features, out_dim=64):
+    def __init__(self, in_features, out_dim=64, num_labels=7):
         super().__init__()
 
         self.conv1 = ME.MinkowskiConvolution(in_features, 64, kernel_size=3, stride=1, dimension=3)
@@ -347,19 +323,30 @@ class ClusteringHead(nn.Module):
         self.bn2 = ME.MinkowskiBatchNorm(64)
         self.act2 = ME.MinkowskiReLU()
 
-        # proyección a embedding
-        self.conv3 = ME.MinkowskiConvolution(64, out_dim, kernel_size=1, stride=1, dimension=3)
+        self.conv3 = ME.MinkowskiConvolution(64, out_dim, kernel_size=1, stride=1, dimension=3) # 64, out_dim, ...
 
         self.pool = ME.MinkowskiGlobalAvgPooling()
 
+        # a small linear classifier to map embedding -> logits
+        self.classifier = nn.Linear(out_dim, num_labels)
+
     def forward(self, x):
+        """
+        Input:
+            x: ME.SparseTensor (feature map from backbone)
+        Returns:
+            dict with:
+              - 'emb': normalized embedding tensor [B, out_dim]
+              - 'logits': raw logits tensor [B, num_labels]
+        """
         x = self.act1(self.bn1(self.conv1(x)))
         x = self.act2(self.bn2(self.conv2(x)))
         x = self.conv3(x)
-        x = self.pool(x)
-        emb = x.F                      # take dense tensor
-        emb = torch.nn.functional.normalize(emb, dim=1)
-        return emb                     # [B, out_dim] dense normalized tens
+        x = self.pool(x)               # ME.SparseTensor with .F : [B, out_dim]
+        feats = x.F                    # dense tensor
+        emb = F.normalize(feats, dim=1)
+        logits = self.classifier(feats)  # raw logits (no softmax)
+        return {'emb': emb, 'logits': logits}
 
 model = MinkUNeXt(in_channels=1, out_channels=512, D=3)
 
