@@ -1,3 +1,3 @@
-# Agri-MinkUNeXt
+# MinkUNeXt-VINE
 
-This repository contains the code of the MinkUNeXt convolutional neural network, which was modified both in the preprocessing, estructure (new head) and training loss function in order to optimize its performance on agricultural environments.
+This repository contains the code of the MinkUNeXt convolutional neural network, which was modified in two key areas to enhance its performance in agricultural environments. The modifications were made during the preprocessing, structure (new head), and training loss function.
