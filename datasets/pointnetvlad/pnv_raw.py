@@ -26,14 +26,15 @@ class PNVPointCloudLoader(PointCloudLoader):
         x_mean = np.mean(x)
         y_mean = np.mean(y)
         z_mean = np.mean(z)
-
+        norm_factor = 60.0
+        
         x = x - x_mean
         y = y - y_mean
         z = z - z_mean
 
-        x = x / 50.0
-        y = y / 50.0
-        z = z / 50.0
+        x = x / norm_factor
+        y = y / norm_factor
+        z = z / norm_factor
 
         points[:, 0] = x
         points[:, 1] = y
@@ -47,61 +48,6 @@ class PNVPointCloudLoader(PointCloudLoader):
         self.remove_ground_plane = False
         self.ground_plane_level = None
     
-    """def mostrar_img(self,x,y,num_points,reflectivity):
-        # Definir las dimensiones de la imagen
-        img_width, img_height = 500, 500
-
-        # Crear una imagen vacía con fondo negro
-        image = np.zeros((img_height, img_width))
-
-        # Escalar y trasladar los puntos al rango de la imagen
-        x_img = ((x - x.min()) / (x.max() - x.min()) * (img_width - 1)).astype(int)
-        y_img = ((y - y.min()) / (y.max() - y.min()) * (img_height - 1)).astype(int)
-
-        # Asignar los valores de reflectividad a la imagen
-        for i in range(num_points):
-            image[y_img[i], x_img[i]] = reflectivity[i]
-
-        # Mostrar la imagen usando Matplotlib
-        plt.imshow(image, cmap='gray', origin='lower')
-        plt.colorbar(label='Reflectividad')
-        plt.title('Nube de Puntos Proyectada a Imagen')
-        plt.xlabel('X')
-        plt.ylabel('Y')
-        plt.show()
-    def project2image(self,Tlc,dy,dx,fx,fy, points, reflectivity):
-        points_camera = []
-        cx = dx/2
-        cy = dy/2
-        camera_matrix = np.array([[fx, 0, cx],
-                                [0, fy, cy],
-                                [0, 0, 1]], np.float32)
-        dist_coeffs = np.zeros((5, 1), np.float32)
-        tvec = np.zeros((3, 1), np.float32)
-        rvec = np.zeros((3, 1), np.float32)
-        Tcl = np.linalg.inv(Tlc)
-
-        for i in range(len(points)):
-            p = np.concatenate((points[i,:],np.array([1])))
-            p=np.matmul(Tcl,p.T)
-            points_camera.append(p)
-
-        points_camera=np.asarray(points_camera)
-        points_camera2=points_camera[:,0:3]
-        prueba=np.copy(points_camera2)
-        points_2d, _ = cv2.projectPoints(prueba,rvec, tvec,camera_matrix,dist_coeffs)
-        image_size = (dx, dy,3)
-        image = np.zeros((image_size[1], image_size[0],image_size[2]))
-        for point in points_2d.squeeze().astype(int):
-            cv2.circle(image, tuple(point), 0, (255, 255, 0), -1)
-        
-        # Escalar y trasladar los puntos al rango de la imagen
-        [x, y] = points_camera[:, 0], points_camera[:, 1]
-        x_img = ((x - x.min()) / (x.max() - x.min()) * (image_size[0] - 1)).astype(int)
-        y_img = ((y - y.min()) / (y.max() - y.min()) * (image_size[1] - 1)).astype(int)
-        for i in range(points_camera.size):
-            image[y_img[i], x_img[i]] = reflectivity[i]
-        return image"""
 
     def correct_intensity(self, points, intensity):
         """ This function corrects the intensity value, removing the bias of the distance between point and sensor. """
@@ -178,21 +124,14 @@ class PNVPointCloudLoader(PointCloudLoader):
             if not PARAMS.use_downsampled:
                 if PARAMS.correct_intensity:
                     intensity = self.correct_intensity(points, intensity)
-                if PARAMS.protocol == 'vmd':
-                    """pcd = o3d.geometry.PointCloud()
-                    pcd.points = o3d.utility.Vector3dVector(points)
-                    
-                    #pcd = pcd.voxel_down_sample(voxel_size=0.01)
-                    pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=200, std_ratio=0.01)
-                    pcd, ind = self.dror_filter(pcd.points)
-                    points = np.asarray(pcd.points)"""
-
+                if PARAMS.protocol == 'vmd' or PARAMS.protocol == 'blt':
+                    # Remove noisy points
                     [x, y, z] = points[:, 0], points[:, 1], points[:, 2]
                     r2 = x ** 2 + y ** 2
                     idx = np.where((r2 < PARAMS.max_distance ** 2))
                     points = points[idx]
                     intensity = intensity[idx]
-                if PARAMS.protocol == 'arvc': # Eliminar ruido presente en estos datos mediante radio min y max
+                if PARAMS.protocol == 'arvc': # Remove noise with minimum and maximum radius
                     [x, y, z] = points[:, 0], points[:, 1], points[:, 2]
                     r2 = x ** 2 + y ** 2
                     idx = np.where(r2 < PARAMS.max_distance ** 2) and np.where(r2 > PARAMS.min_distance ** 2)
@@ -203,7 +142,6 @@ class PNVPointCloudLoader(PointCloudLoader):
                     points = SphericalCoords.to_spherical(points, PARAMS.protocol)
                     intensity = points[:, 3]
                     points = points[:, :3]
-                    #print(min(spherical_points[:, 2]))
                 if PARAMS.equalize_intensity:
                     intensity = exposure.equalize_hist(intensity)
             return points, intensity
@@ -268,33 +206,8 @@ class PNVPointCloudLoader(PointCloudLoader):
         filtered_pcd = pcd.select_by_index(inlier_indices)
         return filtered_pcd, inlier_indices
     
-    def read_reflec(self, file_pathname: str):
-        # Reads the point cloud reflectivity value
-        file_path = os.path.join(file_pathname)
-        scan_data = pd.read_csv(file_path, sep=',')
-        reflec = np.asarray(scan_data["reflectivity"].values)
-        #reflec_norm = (reflec - reflec.min()) / (reflec.max() - reflec.min())
-        #reflec_norm = reflec / 255.0
-        #reflec_norm = (reflec + 150) / 255.0
-        #reflec_norm = exposure.equalize_hist(reflec)
-        reflec_norm = []
-        for r in reflec:
-            if r == 0:
-                reflec_norm.append(0)
-            else:
-                reflec_norm.append(1)
-        reflec_norm = np.array(reflec_norm)
-        return reflec_norm
     
-    def read_intensity(self, file_pathname: str):
-        # Reads the point cloud reflectivity value
-        file_path = os.path.join(file_pathname)
-        scan_data = pd.read_csv(file_path, sep=',')
-        intensity = np.asarray(scan_data["intensity"].values)
-        #intensity_norm = (intensity - intensity.min()) / (intensity.max() - intensity.min())
-        #intensity_norm = intensity / 255.0
-        #intensity_norm = (intensity + 150) / 255.0
-        #intensity_norm = exposure.equalize_hist(intensity)
+    def read_intensity(self, intensity):
         intensity_norm = []
         for i in intensity:
             if i == 0:

@@ -9,6 +9,61 @@ import torch.nn as nn
 import MinkowskiEngine as ME
 from model.residual_blocks import *
 
+import MinkowskiEngine as ME
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class MAC(nn.Module):
+    def __init__(self, outdim=None):
+        super().__init__()
+        self.pool = ME.MinkowskiGlobalMaxPooling()
+        self.outdim = outdim
+        if outdim is not None:
+            self.fc = nn.Linear(0, outdim)  # Lazy
+            self.is_lazy = True
+        else:
+            self.fc = None
+
+    def forward(self, x: ME.SparseTensor):
+        # Max pooling Minkowski native
+        pooled = self.pool(x)   # SparseTensor (B, C)
+
+        out = pooled.F          # Dense tensor (B, C)
+
+        if self.fc is None:
+            return out
+
+        if self.is_lazy:
+            self.fc = nn.Linear(out.shape[1], self.outdim).to(out.device)
+            self.is_lazy = False
+
+        return self.fc(out)
+
+class SPoC(nn.Module):
+    def __init__(self, outdim=None):
+        super().__init__()
+        self.pool = ME.MinkowskiGlobalAvgPooling()
+        self.outdim = outdim
+        if outdim is not None:
+            self.fc = nn.Linear(0, outdim)
+            self.is_lazy = True
+        else:
+            self.fc = None
+
+    def forward(self, x: ME.SparseTensor):
+        pooled = self.pool(x)  # SparseTensor (B, C)
+        out = pooled.F         # Dense tensor (B, C)
+
+        if self.fc is None:
+            return out
+
+        if self.is_lazy:
+            self.fc = nn.Linear(out.shape[1], self.outdim).to(out.device)
+            self.is_lazy = False
+
+        return self.fc(out)
+
 class GeM(nn.Module):
     def __init__(self, input_dim, p=3, eps=1e-6):
         super(GeM, self).__init__()
@@ -236,11 +291,15 @@ class MinkUNeXt(ResNetBase):
             dimension=D)
                 
         if PARAMS.clustering_head:
-            self.clustering_head = ClusteringHead(in_features=512)
+            self.clustering_head = ClusteringHead()
         
 
         self.relu = ME.MinkowskiReLU(inplace=True)
         self.GeM_pool = GeM(input_dim=out_channels)
+        if PARAMS.aggregator_fusion:
+            self.SPoC_pool = SPoC(outdim=out_channels)
+            self.MAC_pool = MAC(outdim=out_channels)
+            self.fusion= nn.Parameter(torch.ones(1,3))
 
     def forward(self, batch):
         x = ME.SparseTensor(batch['features'], coordinates=batch['coords'])
@@ -279,6 +338,7 @@ class MinkUNeXt(ResNetBase):
 
         # tensor_stride=4
         out = self.convtr5p8s2(out)
+        trasposed_features2 = out
         out = self.bntr5(out)
         out = self.relu(out)
 
@@ -295,10 +355,18 @@ class MinkUNeXt(ResNetBase):
         out = self.block7(out)
 
         out = self.final(out)
-        descriptor = self.GeM_pool(out)
+        if PARAMS.aggregator_fusion:
+            spoc =  self.SPoC_pool(out)
+            gem  =  self.GeM_pool(out)
+            mac  =  self.MAC_pool(out)
+            z    =  torch.stack([spoc,gem,mac],dim=1)
+            descriptor = torch.matmul(self.fusion,z).squeeze(1)
+            descriptor = F.normalize(descriptor, p=2, dim=1)
+        else:
+            descriptor = self.GeM_pool(out)
         if PARAMS.clustering_head:
             # clustering_head now returns a dict {'emb': tensor(B, emb_dim), 'logits': tensor(B, num_labels)}
-            clust_out = self.clustering_head(out)
+            clust_out = self.clustering_head(trasposed_features2)
             return {'global': descriptor, 'clustering_emb': clust_out['emb'], 'clustering_logits': clust_out['logits'] }
         else:
             return {'global': descriptor}
@@ -312,7 +380,7 @@ class Mish(nn.Module):
         return ME.SparseTensor(result, coordinate_map_key=x.coordinate_map_key, coordinate_manager=x.coordinate_manager)
 
 class ClusteringHead(nn.Module):
-    def __init__(self, in_features, out_dim=64, num_labels=7):
+    def __init__(self, in_features=192, out_dim=64, num_labels=7):
         super().__init__()
 
         self.conv1 = ME.MinkowskiConvolution(in_features, 64, kernel_size=3, stride=1, dimension=3)

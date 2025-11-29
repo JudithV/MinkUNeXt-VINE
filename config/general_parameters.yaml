@@ -1,5 +1,5 @@
 dataset_folder: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main/' # '/home/arvc/Judith/MinkUNeXt-main'
-cuda_device: 'cuda:0' # 'cuda:0' or 'cuda:1'
+cuda_device: 'cuda:1' # 'cuda:0' or 'cuda:1'
 
 patience: 40
 min_delta: 0.001
@@ -43,16 +43,17 @@ pos_margin: 0
 neg_margin: 1
 
 normalize_embeddings: False
+aggregator_fusion: False
 clustering_head: False
-clustering_importance: 0.2
-cluster_batch_size: 16
+clustering_importance: 0.5
+cluster_batch_size: 2048
 use_cross_entropy: False
 cross_entropy_importance: 0.2
 labeling_head: False
 labeling_importance: 0.1
 labeling_batch_size: 16
 
-protocol: 'blt'
+protocol: 'vmd'
 baseline:
   epochs: 400
   scheduler_milestones: [250, 350]
@@ -99,15 +100,15 @@ blt:
   epochs: 200 # 75
   scheduler_milestones: [75, 150] # [25, 50]
   num_points: 23000
-  train_file: train_test_sets/blt/training_queries_blt_Ktima_3D.pickle
-  val_file: train_test_sets/blt/test_queries_blt_Ktima_3D.pickle
+  train_file: train_test_sets/blt/training_queries_blt_Ktima_3D_autumn.pickle
+  val_file: train_test_sets/blt/test_queries_blt_Ktima_3D_autumn.pickle
 
 vmd:
   epochs: 200 # 75
   scheduler_milestones: [75, 150] # [25, 50]
   num_points: 23000
-  train_file: train_test_sets/vmd/training_queries_vmd_feb_runs_VELO_segments.pickle # training_queries_vmd_feb-sept_zones_VELO.pickle
-  val_file: train_test_sets/vmd/test_queries_vmd_feb_runs_VELO_segments.pickle # test_queries_vmd_feb-sept_zones_VELO.pickle
+  train_file: train_test_sets/vmd/training_queries_vmd_feb_runs_Livox.pickle # training_queries_vmd_feb-sept_zones_VELO.pickle
+  val_file: train_test_sets/vmd/test_queries_vmd_feb_runs_Livox.pickle # test_queries_vmd_feb-sept_zones_VELO.pickle
 
 print:
   model_info: True
