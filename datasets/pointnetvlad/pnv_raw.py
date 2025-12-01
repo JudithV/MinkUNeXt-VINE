@@ -110,10 +110,6 @@ class PNVPointCloudLoader(PointCloudLoader):
             else:
                 df = df.query('x != 0 and y != 0 and z != 0 and intensity != 0')
                 points = df[["x", "y", "z"]].to_numpy() 
-            if PARAMS.normalize:
-                pcd = o3d.geometry.PointCloud()
-                pcd.points = o3d.utility.Vector3dVector(points)
-                points = self.global_normalize(pcd)
             #print(len(points)) # Number of points in cloud
             if PARAMS.protocol == 'blt' and PARAMS.use_2D:
                 intensity = np.zeros(len(df))
@@ -144,6 +140,11 @@ class PNVPointCloudLoader(PointCloudLoader):
                     points = points[:, :3]
                 if PARAMS.equalize_intensity:
                     intensity = exposure.equalize_hist(intensity)
+            if PARAMS.normalize:
+                pcd = o3d.geometry.PointCloud()
+                pcd.points = o3d.utility.Vector3dVector(points)
+                points = self.global_normalize(pcd)
+
             return points, intensity
         
         else:
