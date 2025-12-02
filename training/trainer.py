@@ -50,6 +50,9 @@ def training_step(global_iter, model, phase, device, optimizer, loss_fn):
         model.eval()
 
     optimizer.zero_grad()
+    distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
+    loss_fn_cluster = BatchHardContrastiveLossWithMasks(pos_margin=PARAMS.pos_margin, neg_margin=PARAMS.neg_margin, distance=distance)
+
     with torch.set_grad_enabled(phase == 'train'):
         y = model(batch)
 
@@ -110,6 +113,8 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
 
     assert phase in ['train', 'val']
     batch, positives_mask, negatives_mask = next(global_iter)
+    distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
+    loss_fn_cluster = BatchHardContrastiveLossWithMasks(pos_margin=PARAMS.pos_margin, neg_margin=PARAMS.neg_margin, distance=distance)
 
     if phase == 'train':
         model.train()
@@ -161,6 +166,7 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
 
         # 1. Loss Global
         loss, stats = loss_fn(embeddings, positives_mask, negatives_mask)
+        #loss, stats = loss_fn_cluster(embeddings, positives_mask, negatives_mask)
         stats = tensors_to_numbers(stats)
 
         # 2. Loss Clustering (Sobre el batch COMPLETO, no submuestreado si es posible, o submuestreado una vez aquí)

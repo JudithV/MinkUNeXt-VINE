@@ -1,5 +1,5 @@
 dataset_folder: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main/' # '/home/arvc/Judith/MinkUNeXt-main'
-cuda_device: 'cuda:1' # 'cuda:0' or 'cuda:1'
+cuda_device: 'cuda:0' # 'cuda:0' or 'cuda:1'
 
 patience: 40
 min_delta: 0.001
@@ -17,10 +17,10 @@ format_point_cloud: 'csv' #'bin' | 'csv'
 
 spherical_coords: False
 normalize: True
-use_intensity: False
+use_intensity: True
 process_intensity: False
-equalize_intensity: False
-correct_intensity: False
+equalize_intensity: True
+correct_intensity: True
 use_downsampled: False
 min_distance: 2
 max_distance: 60 # 60
@@ -43,8 +43,8 @@ pos_margin: 0
 neg_margin: 1
 
 normalize_embeddings: False
-aggregator_fusion: False
-clustering_head: False
+aggregator_fusion: True
+clustering_head: True
 clustering_importance: 0.5
 cluster_batch_size: 2048
 use_cross_entropy: False
@@ -116,4 +116,4 @@ print:
   debug: False
 
 evaluate:
-  weights_path: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main/weights/MinkUNeXt_blt_20251120_0905_final.pth'
+  weights_path: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main/weights/MinkUNeXt_vmd_20251127_1157_final.pth'

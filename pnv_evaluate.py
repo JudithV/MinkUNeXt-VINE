@@ -21,9 +21,9 @@ from datasets.quantization import quantizer
 def evaluate(model, device, log: bool = False, show_progress: bool = False):
     # Run evaluation on all eval datasets
 
-    eval_database_files = ['train_test_sets/blt/minkloc_blt_evaluation_database.pickle']
+    eval_database_files = ['train_test_sets/vmd/minkloc_vmd_evaluation_database.pickle']
 
-    eval_query_files = ['train_test_sets/blt/minkloc_blt_evaluation_query.pickle']
+    eval_query_files = ['train_test_sets/vmd/minkloc_vmd_evaluation_query.pickle']
 
     assert len(eval_database_files) == len(eval_query_files)
 
@@ -70,8 +70,8 @@ def evaluate_dataset(model, device, database_sets, query_sets, log: bool = False
    
     for i in range(len(query_sets)):
         for j in range(len(query_sets)):
-            if i == j: 
-                continue
+            """if i == j: 
+                continue"""
             pair_recall, pair_opr, query_results_pairs = get_recall(i, j, database_embeddings, query_embeddings, query_sets,
                                                database_sets, log=log)
             query_results.extend(query_results_pairs)

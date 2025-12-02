@@ -115,8 +115,6 @@ class PNVPointCloudLoader(PointCloudLoader):
                 intensity = np.zeros(len(df))
             else:
                 intensity = df["intensity"].to_numpy()
-            if PARAMS.correct_intensity:
-                intensity = self.correct_intensity(points, intensity)
             if not PARAMS.use_downsampled:
                 if PARAMS.correct_intensity:
                     intensity = self.correct_intensity(points, intensity)
@@ -138,13 +136,15 @@ class PNVPointCloudLoader(PointCloudLoader):
                     points = SphericalCoords.to_spherical(points, PARAMS.protocol)
                     intensity = points[:, 3]
                     points = points[:, :3]
+            if PARAMS.correct_intensity:
+                intensity = self.correct_intensity(points, intensity)
+            if not PARAMS.use_downsampled:
                 if PARAMS.equalize_intensity:
                     intensity = exposure.equalize_hist(intensity)
             if PARAMS.normalize:
                 pcd = o3d.geometry.PointCloud()
                 pcd.points = o3d.utility.Vector3dVector(points)
                 points = self.global_normalize(pcd)
-
             return points, intensity
         
         else:
