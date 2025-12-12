@@ -1,7 +1,7 @@
 # Miguel Hernández University of Elche
 # Institute for Engineering Research of Elche (I3E)
 # Automation, Robotics and Computer Vision lab (ARCV)
-# Author: Juan José Cabrera Mora
+# Author: Juan José Cabrera Mora & Judith Vilella Cantos
 
 import torch
 from config import PARAMS
@@ -365,19 +365,10 @@ class MinkUNeXt(ResNetBase):
         else:
             descriptor = self.GeM_pool(out)
         if PARAMS.clustering_head:
-            # clustering_head now returns a dict {'emb': tensor(B, emb_dim), 'logits': tensor(B, num_labels)}
             clust_out = self.clustering_head(trasposed_features2)
-            return {'global': descriptor, 'clustering_emb': clust_out['emb'], 'clustering_logits': clust_out['logits'] }
+            return {'global': descriptor, 'clustering_emb': clust_out}
         else:
             return {'global': descriptor}
-
-class Mish(nn.Module):
-    def __init__(self):
-        super(Mish, self).__init__()
-
-    def forward(self, x):
-        result = x.F * torch.tanh(F.softplus(x.F))
-        return ME.SparseTensor(result, coordinate_map_key=x.coordinate_map_key, coordinate_manager=x.coordinate_manager)
 
 class ClusteringHead(nn.Module):
     def __init__(self, in_features=192, out_dim=64, num_labels=7):
@@ -413,8 +404,7 @@ class ClusteringHead(nn.Module):
         x = self.pool(x)               # ME.SparseTensor with .F : [B, out_dim]
         feats = x.F                    # dense tensor
         emb = F.normalize(feats, dim=1)
-        logits = self.classifier(feats)  # raw logits (no softmax)
-        return {'emb': emb, 'logits': logits}
+        return emb
 
 model = MinkUNeXt(in_channels=1, out_channels=512, D=3)
 

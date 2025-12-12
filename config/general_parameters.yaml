@@ -4,7 +4,7 @@ cuda_device: 'cuda:0' # 'cuda:0' or 'cuda:1'
 patience: 40
 min_delta: 0.001
 
-quantization_size: 0.01  # esfericas: [2.5,2.0,1.875], [0.1,2.0,1.875] [m,deg,deg]; cartesianas: 0.01 [m,m,m]
+quantization_size: 0.1  # esfericas: [2.5,2.0,1.875], [0.1,2.0,1.875] [m,deg,deg]; cartesianas: 0.01 [m,m,m]
 num_workers: 0
 batch_size: 2048 #128 / --> 2048
 batch_size_limit: 2048  #128 / --> 2048
@@ -16,11 +16,11 @@ val_batch_size: 4 # 32
 format_point_cloud: 'csv' #'bin' | 'csv'
 
 spherical_coords: False
-normalize: True
+normalize: False
 use_intensity: True
 process_intensity: False
 equalize_intensity: True
-correct_intensity: True
+correct_intensity: False
 use_downsampled: False
 min_distance: 2
 max_distance: 60 # 60
@@ -43,17 +43,12 @@ pos_margin: 0
 neg_margin: 1
 
 normalize_embeddings: False
-aggregator_fusion: True
-clustering_head: True
+aggregator_fusion: False
+clustering_head: False
 clustering_importance: 0.5
 cluster_batch_size: 2048
-use_cross_entropy: False
-cross_entropy_importance: 0.2
-labeling_head: False
-labeling_importance: 0.1
-labeling_batch_size: 16
 
-protocol: 'vmd'
+protocol: 'blt'
 baseline:
   epochs: 400
   scheduler_milestones: [250, 350]
@@ -100,8 +95,8 @@ blt:
   epochs: 200 # 75
   scheduler_milestones: [75, 150] # [25, 50]
   num_points: 23000
-  train_file: train_test_sets/blt/training_queries_blt_Ktima_3D_autumn.pickle
-  val_file: train_test_sets/blt/test_queries_blt_Ktima_3D_autumn.pickle
+  train_file: train_test_sets/blt/training_queries_blt_Ktima_3D.pickle
+  val_file: train_test_sets/blt/test_queries_blt_Ktima_3D.pickle
 
 vmd:
   epochs: 200 # 75

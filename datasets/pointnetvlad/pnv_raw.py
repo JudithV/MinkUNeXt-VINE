@@ -1,3 +1,7 @@
+# Miguel Hernández University of Elche
+# Institute for Engineering Research of Elche (I3E)
+# Automation, Robotics and Computer Vision lab (ARCV)
+# Author: Judith Vilella Cantos (adapted from MinkUNeXt)
 import copy
 import time
 import numpy as np
@@ -56,41 +60,6 @@ class PNVPointCloudLoader(PointCloudLoader):
         intensity_corr = intensity / (r**2 * cos_phi)
         return intensity_corr
 
-    def dsor_filter(self, points, base_k=10, scaling_factor=0.5, std_ratio=2.0):
-        """
-        DSOR: Dynamic Statistical Outlier Removal.
-        """
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(points)
-        kdtree = o3d.geometry.KDTreeFlann(pcd)
-
-        distances = []
-        neighbors_list = []
-
-        for i, point in enumerate(points):
-            dist = np.linalg.norm(point)
-            k = int(base_k + scaling_factor * dist)  # k dinámico según distancia
-            k = min(k, len(points) - 1)  # para evitar exceder el tamaño de la nube
-
-            [_, idxs, dists] = kdtree.search_knn_vector_3d(point, k)
-            if len(dists) > 0:
-                avg_dist = np.mean(np.sqrt(dists[1:]))  # quitamos el primero (distancia a sí mismo)
-                distances.append(avg_dist)
-                neighbors_list.append(i)
-
-        # Calcular media y desviación globales de distancias promedio
-        distances = np.array(distances)
-        mean_dist = np.mean(distances)
-        std_dev = np.std(distances)
-
-        threshold = mean_dist + std_ratio * std_dev
-
-        # Elegimos solo los puntos cuya distancia media a vecinos es razonable
-        inlier_indices = [neighbors_list[i] for i in range(len(distances)) if distances[i] < threshold]
-        filtered_pcd = pcd.select_by_index(inlier_indices)
-
-        return filtered_pcd, inlier_indices
-
     def read_pc(self, device, file_pathname: str) -> np.ndarray:
         if PARAMS.format_point_cloud == 'csv':
             # SE RECIBE LA PC EN CSV
@@ -118,13 +87,13 @@ class PNVPointCloudLoader(PointCloudLoader):
             if not PARAMS.use_downsampled:
                 if PARAMS.correct_intensity:
                     intensity = self.correct_intensity(points, intensity)
-                if PARAMS.protocol == 'vmd' or PARAMS.protocol == 'blt':
+                """if PARAMS.protocol == 'vmd' or PARAMS.protocol == 'blt':
                     # Remove noisy points
                     [x, y, z] = points[:, 0], points[:, 1], points[:, 2]
                     r2 = x ** 2 + y ** 2
                     idx = np.where((r2 < PARAMS.max_distance ** 2))
                     points = points[idx]
-                    intensity = intensity[idx]
+                    intensity = intensity[idx]"""
                 if PARAMS.protocol == 'arvc': # Remove noise with minimum and maximum radius
                     [x, y, z] = points[:, 0], points[:, 1], points[:, 2]
                     r2 = x ** 2 + y ** 2

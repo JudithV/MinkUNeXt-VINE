@@ -71,8 +71,6 @@ class TrainingDataset(Dataset):
         # query['intensity'] = self.intensity_loader(file_pathname)
         query_pc['cloud'] = torch.tensor(query_pc['cloud'], dtype=torch.float)
         query_pc['reflec'] = torch.tensor(query_pc['reflec'], dtype=torch.float)
-        if PARAMS.clustering_head:
-            query_pc['labels'] = torch.tensor(query_pc['labels'], dtype=torch.int)
         query_pc['reflec'] = query_pc['reflec'].reshape([-1,1])
         if self.transform is not None:
             query_pc['cloud'] = self.transform(query_pc['cloud'])

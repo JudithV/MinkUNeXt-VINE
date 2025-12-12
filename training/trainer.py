@@ -1,5 +1,7 @@
-# Code taken from MinkLoc3Dv2 repo: https://github.com/jac99/MinkLoc3Dv2.git
-
+# Miguel Hernández University of Elche
+# Institute for Engineering Research of Elche (I3E)
+# Automation, Robotics and Computer Vision lab (ARCV)
+# Author: Judith Vilella Cantos
 import os
 import numpy as np
 import torch
@@ -80,19 +82,7 @@ def training_step(global_iter, model, phase, device, optimizer, loss_fn):
             loss_clust, _ = loss_fn(clustering, positives_mask, negatives_mask) # loss_fn_cluster
             lambda_clust = PARAMS.clustering_importance
 
-            ce_loss = torch.tensor(0.0, device=device)
-            if 'clustering_logits' in y and 'labels' in batch:
-                logits = y['clustering_logits']           # [B, num_labels]
-                labels = batch['labels'].squeeze().long() # [B]
-                ce_fn = torch.nn.CrossEntropyLoss()
-                ce_loss = ce_fn(logits, labels)
-                lambda_ce = getattr(PARAMS, 'ce_importance', 1.0)
-                stats['ce_loss'] = ce_loss.item()  # opcional, para logs
-            if not PARAMS.use_cross_entropy:
-                loss = loss + lambda_clust * loss_clust
-            else: 
-                lambda_ce = PARAMS.cross_entropy_importance
-                loss = loss + lambda_clust * loss_clust + lambda_ce * ce_loss
+            loss = loss + lambda_clust * loss_clust
         temp_stats = tensors_to_numbers(temp_stats)
         stats.update(temp_stats)
         if phase == 'train':
@@ -126,8 +116,6 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
     embeddings_l = []
     if PARAMS.clustering_head:
         clustering_l = []
-        clustering_logits_l = []
-        labels_l = []
     
     with torch.set_grad_enabled(False):
         for minibatch in batch:
@@ -136,9 +124,6 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
             embeddings_l.append(y['global'])
             if PARAMS.clustering_head:
                 clustering_l.append(y['clustering_emb'])
-                clustering_logits_l.append(y['clustering_logits'])
-                if 'labels' in minibatch:
-                    labels_l.append(minibatch['labels'].to(device))
 
     torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
 
@@ -147,41 +132,26 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
     
     embeddings_grad = None
     clustering_grad = None
-    clustering_logits_grad = None
 
     if PARAMS.clustering_head:
         clustering = torch.cat(clustering_l, dim=0)
-        clustering_logits = torch.cat(clustering_logits_l, dim=0)
-        if len(labels_l) > 0:
-            labels = torch.cat(labels_l, dim=0) 
 
     with torch.set_grad_enabled(phase == 'train'):
         if phase == 'train':
             embeddings.requires_grad_(True)
-            # IMPORTANTE: Habilitar gradientes para las salidas de clustering también
             if PARAMS.clustering_head:
                 clustering.requires_grad_(True)
-                if PARAMS.use_cross_entropy:
-                    clustering_logits.requires_grad_(True)
 
-        # 1. Loss Global
+        # 1. Global loss
         loss, stats = loss_fn(embeddings, positives_mask, negatives_mask)
-        #loss, stats = loss_fn_cluster(embeddings, positives_mask, negatives_mask)
         stats = tensors_to_numbers(stats)
 
-        # 2. Loss Clustering (Sobre el batch COMPLETO, no submuestreado si es posible, o submuestreado una vez aquí)
+        # 2. Additional head loss
         total_loss = loss
         
         if PARAMS.clustering_head:
-            # Nota: Si PARAMS.cluster_batch_size es menor que el batch total, 
-            # el submuestreo debe ocurrir aquí para calcular la loss, pero 
-            # la propagación del gradiente se vuelve compleja porque solo algunos índices tendrán gradiente.
-            # Asumiremos por simplicidad que quieres entrenar con todo o aplicas la loss al tensor completo.
             
-            # Si realmente necesitas subsampling para la loss function por memoria (aunque es raro en Stage 2 cpu/tensors):
             if clustering.shape[0] > PARAMS.cluster_batch_size:
-                # OJO: Si haces subsampling aquí, solo los elementos seleccionados tendrán gradiente.
-                # Esto es aceptable, los demás tendrán gradiente 0.
                 idx = torch.randperm(clustering.shape[0])[:PARAMS.cluster_batch_size]
                 clustering_sub = clustering[idx]
                 positives_mask_sub = positives_mask[idx][:, idx]
@@ -189,19 +159,10 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
                 
                 loss_clust, _ = loss_fn(clustering_sub, positives_mask_sub, negatives_mask_sub)
                 
-                # Truco técnico: Para que el autograd llene el tensor 'clustering.grad' completo,
-                # necesitamos que el gráfico compute dependencias. 
-                # Al indexar (clustering[idx]), PyTorch maneja esto. 
             else:
                 loss_clust, _ = loss_fn(clustering, positives_mask, negatives_mask)
-
-            # 3. Cross Entropy
-            ce_loss = 0
-            if PARAMS.use_cross_entropy:
-                ce_fn = torch.nn.CrossEntropyLoss()
-                ce_loss = ce_fn(clustering_logits, labels.long())
             
-            total_loss = total_loss + (PARAMS.clustering_importance * loss_clust) + (PARAMS.cross_entropy_importance * ce_loss)
+            total_loss = total_loss + (PARAMS.clustering_importance * loss_clust)
 
         # Backward único para obtener gradientes de los EMBEDDINGS (no de la red aún)
         if phase == 'train':
@@ -210,13 +171,11 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
             embeddings_grad = embeddings.grad
             if PARAMS.clustering_head:
                 clustering_grad = clustering.grad
-                if PARAMS.use_cross_entropy:
-                    clustering_logits_grad = clustering_logits.grad
 
     # Limpieza
     embeddings_l, embeddings, loss = None, None, None
     if PARAMS.clustering_head:
-        clustering_l, clustering, clustering_logits = None, None, None
+        clustering_l, clustering = None, None
 
     # ---------------- Stage 3: Backpropagation a través del Backbone ----------------
     if phase == 'train':
@@ -244,10 +203,6 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
                     if clustering_grad is not None:
                         # El gradiente ya viene escalado por lambda desde el Stage 2
                         clustering_mb.backward(gradient=clustering_grad[i: i+minibatch_size], retain_graph=PARAMS.use_cross_entropy)
-                    
-                    if PARAMS.use_cross_entropy and clustering_logits_grad is not None:
-                        clustering_logits_mb = y['clustering_logits']
-                        clustering_logits_mb.backward(gradient=clustering_logits_grad[i: i+minibatch_size])
 
                 i += minibatch_size
 

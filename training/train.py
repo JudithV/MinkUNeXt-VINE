@@ -20,6 +20,25 @@ import matplotlib.pyplot as plt
 def get_datetime():
     return time.strftime("%Y%m%d_%H%M")
 
+def seed_everything(seed=42):
+    # 1. Fijar semilla de Python (librerías base)
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    
+    # 2. Fijar semilla de NumPy (preprocesamiento)
+    np.random.seed(seed)
+    
+    # 3. Fijar semilla de PyTorch (CPU y GPU)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed) # Si usas multi-GPU
+    
+    # 4. Configurar el backend de CUDNN (IMPORTANTE)
+    # Desactivar la búsqueda de algoritmos óptimos (puede variar)
+    torch.backends.cudnn.benchmark = False 
+    # Forzar el uso de algoritmos deterministas (más lento, pero reproducible)
+    torch.backends.cudnn.deterministic = True
+
 def do_train(model):
     # Create model class
     if PARAMS.loss == 'TruncatedSmoothAP':
@@ -29,7 +48,7 @@ def do_train(model):
         distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
         loss_fn = BatchHardContrastiveLossWithMasks(pos_margin=PARAMS.pos_margin, neg_margin=PARAMS.neg_margin,
                 distance=distance)
-
+    seed_everything(42)
     s = get_datetime()
     model_name = 'MinkUNeXt_' + PARAMS.protocol + '_' + s
     weights_path = create_weights_folder()

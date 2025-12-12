@@ -29,6 +29,10 @@ from datasets.pointnetvlad.pnv_raw import PNVPointCloudLoader
 def get_pointcloud_loader(device, dataset_type) -> PointCloudLoader:
     return PNVPointCloudLoader(device)
 
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 def make_datasets(device, validation: bool = True):
     # Create training and validation datasets
@@ -99,10 +103,7 @@ def make_collate_fn(dataset: TrainingDataset, quantizer,batch_split_size=None):
                 feats = torch.cat(feats, dim=0)
                 #feats_composed = torch.cat(feats_composed, dim=0)
                 feats_doble = torch.cat((unos, feats), dim = 1)
-                if PARAMS.clustering_head:
-                    pointcloud_batch = {'coords': coords, 'features': feats, 'labels': segments}
-                else:
-                    pointcloud_batch = {'coords': coords, 'features': feats}
+                pointcloud_batch = {'coords': coords, 'features': feats}
             else:
                 # Split the batch into chunks
                 pointcloud_batch = []
@@ -115,12 +116,7 @@ def make_collate_fn(dataset: TrainingDataset, quantizer,batch_split_size=None):
                     c = ME.utils.batched_coordinates(temp_coords)
                     unos = torch.ones((c.shape[0], 1), dtype=torch.float32)
                     f_2 = torch.cat((unos, feats_r), dim = 1)
-                    if PARAMS.clustering_head:
-                        temp_labels = segments[i:i + batch_split_size]
-                        feats_l = torch.cat(temp_labels, dim=0)
-                        pointcloud_minibatch = {'coords': c, 'features': feats_r, 'labels': feats_l}
-                    else:
-                        pointcloud_minibatch = {'coords': c, 'features': feats_r}
+                    pointcloud_minibatch = {'coords': c, 'features': feats_r}
                     pointcloud_batch.append(pointcloud_minibatch)
 
             return pointcloud_batch, positives_mask, negatives_mask
@@ -191,6 +187,8 @@ def make_dataloaders(device, validation=True):
     :param model_params:
     :return:
     """
+    g = torch.Generator()
+    g.manual_seed(42)
     datasets = make_datasets(device, validation=validation)
     dataloders = {}
     train_sampler = BatchSampler(datasets['train'], batch_size=PARAMS.batch_size,
@@ -201,14 +199,14 @@ def make_dataloaders(device, validation=True):
     train_collate_fn = make_collate_fn(datasets['train'],  quantizer, PARAMS.batch_split_size)
     dataloders['train'] = DataLoader(datasets['train'], batch_sampler=train_sampler,
                                      collate_fn=train_collate_fn, num_workers=PARAMS.num_workers,
-                                     pin_memory=True)
+                                     worker_init_fn=seed_worker, generator=g, pin_memory=True)
     if validation and 'val' in datasets:
         val_collate_fn = make_collate_fn(datasets['val'], quantizer, PARAMS.batch_split_size)
         val_sampler = BatchSampler(datasets['val'], batch_size=PARAMS.val_batch_size)
         # Collate function collates items into a batch and applies a 'set transform' on the entire batch
         # Currently validation dataset has empty set_transform function, but it may change in the future
         dataloders['val'] = DataLoader(datasets['val'], batch_sampler=val_sampler, collate_fn=val_collate_fn,
-                                       num_workers=PARAMS.num_workers, pin_memory=True)
+                                       num_workers=PARAMS.num_workers, worker_init_fn=seed_worker, generator=g, pin_memory=True)
     return dataloders
 
 
