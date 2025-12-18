@@ -4,7 +4,7 @@ cuda_device: 'cuda:0' # 'cuda:0' or 'cuda:1'
 patience: 40
 min_delta: 0.001
 
-quantization_size: 0.1  # esfericas: [2.5,2.0,1.875], [0.1,2.0,1.875] [m,deg,deg]; cartesianas: 0.01 [m,m,m]
+quantization_size: 0.01  # spherical: [2.5,2.0,1.875], [0.1,2.0,1.875] [m,deg,deg]; cartesians: 0.01 [m,m,m]
 num_workers: 0
 batch_size: 2048 #128 / --> 2048
 batch_size_limit: 2048  #128 / --> 2048
@@ -16,10 +16,10 @@ val_batch_size: 4 # 32
 format_point_cloud: 'csv' #'bin' | 'csv'
 
 spherical_coords: False
-normalize: False
-use_intensity: True
+normalize: True
+use_intensity: False
 process_intensity: False
-equalize_intensity: True
+equalize_intensity: False
 correct_intensity: False
 use_downsampled: False
 min_distance: 2
@@ -43,7 +43,6 @@ pos_margin: 0
 neg_margin: 1
 
 normalize_embeddings: False
-aggregator_fusion: False
 clustering_head: False
 clustering_importance: 0.5
 cluster_batch_size: 2048
