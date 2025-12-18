@@ -74,14 +74,6 @@ class TrainingDataset(Dataset):
         query_pc['reflec'] = query_pc['reflec'].reshape([-1,1])
         if self.transform is not None:
             query_pc['cloud'] = self.transform(query_pc['cloud'])
-        #print("Num puntos nube: ",len(query_pc['cloud']))
-        """padlen = PARAMS.num_points - len(query_pc['cloud'])
-        if padlen > 0:
-            query_pc['cloud'] = torch.nn.functional.pad(query_pc['cloud'], (0, 0, 0, padlen), "constant", 0)
-            query_pc['reflec'] = torch.nn.functional.pad(query_pc['reflec'], (0, 0, 0, padlen), "constant", 0)
-        elif padlen < 0:
-            query_pc['cloud'] = query_pc['cloud'][:n_points]
-            query_pc['reflec'] = query_pc['reflec'][:n_points]"""
         
         return query_pc, ndx
 
@@ -159,18 +151,6 @@ class PointCloudLoader:
         # file_pathname: relative file path
         assert os.path.exists(file_pathname), f"Cannot open point cloud: {file_pathname}"
         pc, reflec = self.read_pc(self.device, file_pathname)
-        if PARAMS.clustering_head:
-            if PARAMS.protocol == "blt":
-                path_labels = Path(file_pathname).parents[3]
-            else:
-                path_labels = Path(file_pathname).parents[2]
-            df = pd.read_csv(path_labels / "data.csv", dtype={'timestamp': str})
-
-            name_without_ext = Path(file_pathname).stem
-            
-            row = df.loc[df['timestamp'] == name_without_ext]
-
-            labels = row['segment'].to_numpy()
         #file_pathname = file_pathname.replace(".pcd", ".csv")
         #reflec = self.read_reflec(file_pathname)
         assert pc.shape[1] == 3
@@ -182,10 +162,7 @@ class PointCloudLoader:
         if self.remove_ground_plane:
             mask = pc[:, 2] > self.ground_plane_level
             pc = pc[mask]
-        if PARAMS.clustering_head:
-            query = {'cloud': pc, 'reflec': reflec, 'labels': labels}
-        else:
-            query = {'cloud': pc, 'reflec': reflec}
+        query = {'cloud': pc, 'reflec': reflec}
         return query
 
     def read_pc(self, device, file_pathname: str) -> np.ndarray:
