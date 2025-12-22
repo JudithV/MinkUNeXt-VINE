@@ -54,8 +54,6 @@ def training_step(global_iter, model, phase, device, optimizer, loss_fn):
         model.eval()
 
     optimizer.zero_grad()
-    distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
-    loss_fn_cluster = BatchHardContrastiveLossWithMasks(pos_margin=PARAMS.pos_margin, neg_margin=PARAMS.neg_margin, distance=distance)
     loss_fn_matryoshka = MatryoshkaLoss(loss_fn, dims=[64, 128, 192], weights=[1.0, 0.5, 0.25])
     with torch.set_grad_enabled(phase == 'train'):
         y = model(batch)
@@ -64,27 +62,7 @@ def training_step(global_iter, model, phase, device, optimizer, loss_fn):
 
         embeddings = y['global']
 
-        #loss, temp_stats = loss_fn(embeddings, positives_mask, negatives_mask)
         loss, temp_stats = loss_fn_matryoshka(embeddings, positives_mask, negatives_mask)
-        #loss, temp_stats = loss_fn_cluster(embeddings, positives_mask, negatives_mask)
-        if PARAMS.clustering_head:
-            distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
-            loss_fn_cluster = BatchHardContrastiveLossWithMasks(pos_margin=PARAMS.pos_margin, neg_margin=PARAMS.neg_margin, distance=distance)
-            clustering = y['clustering_emb'] # y['clustering_emb']
-            if clustering.shape[0] > PARAMS.cluster_batch_size:
-                idx = torch.randperm(clustering.shape[0])[:PARAMS.cluster_batch_size]
-                clustering_sub = clustering[idx]
-                positives_mask_sub = positives_mask[idx][:, idx]
-                negatives_mask_sub = negatives_mask[idx][:, idx]
-            else:
-                clustering_sub = clustering
-                positives_mask_sub = positives_mask
-                negatives_mask_sub = negatives_mask
-
-
-            loss_clust, _ = loss_fn(clustering, positives_mask, negatives_mask) # loss_fn_cluster
-            lambda_clust = PARAMS.clustering_importance
-            loss = loss + lambda_clust * loss_clust
         temp_stats = tensors_to_numbers(temp_stats)
         stats.update(temp_stats)
         if phase == 'train':
@@ -105,8 +83,6 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
 
     assert phase in ['train', 'val']
     batch, positives_mask, negatives_mask = next(global_iter)
-    distance = LpDistance(normalize_embeddings=PARAMS.normalize_embeddings)
-    loss_fn_cluster = BatchHardContrastiveLossWithMasks(pos_margin=PARAMS.pos_margin, neg_margin=PARAMS.neg_margin, distance=distance)
     loss_fn_matryoshka = MatryoshkaLoss(loss_fn, dims=[64, 128, 192], weights=[1.0, 0.5, 0.25])
     if phase == 'train':
         model.train()
@@ -116,53 +92,32 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
     # Stage 1 - calculate descriptors of each batch element (with gradient turned off)
     # In training phase network is in the train mode to update BatchNorm stats
     embeddings_l = []
-    if PARAMS.clustering_head:
-        clustering_l = []
     
     with torch.set_grad_enabled(False):
         for minibatch in batch:
             minibatch = {e: minibatch[e].to(device) for e in minibatch}
             y = model(minibatch)
             embeddings_l.append(y['global'])
-            if PARAMS.clustering_head:
-                clustering_l.append(y['clustering_emb']) # y['clustering_emb']
 
     torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
 
     embeddings = torch.cat(embeddings_l, dim=0)
     
     embeddings_grad = None
-    clustering_grad = None
-    clustering_logits_grad = None
-
-    if PARAMS.clustering_head:
-        clustering = torch.cat(clustering_l, dim=0)
 
     with torch.set_grad_enabled(phase == 'train'):
         if phase == 'train':
             embeddings.requires_grad_(True)
-            if PARAMS.clustering_head:
-                clustering.requires_grad_(True)
 
         loss, stats = loss_fn_matryoshka(embeddings, positives_mask, negatives_mask)
         stats = tensors_to_numbers(stats)
 
-        total_loss = loss
-        
-        if PARAMS.clustering_head:
-            loss_clust, _ = loss_fn(clustering, positives_mask, negatives_mask)
-            total_loss += (PARAMS.clustering_importance * loss_clust)
-
         if phase == 'train':
-            total_loss.backward()
+            loss.backward()
             
             embeddings_grad = embeddings.grad
-            if PARAMS.clustering_head:
-                clustering_grad = clustering.grad
 
     embeddings_l, embeddings, loss = None, None, None
-    if PARAMS.clustering_head:
-        clustering_l, clustering = None, None
 
     # ---------------- Stage 3: Backpropagation ----------------
     if phase == 'train':
@@ -172,21 +127,12 @@ def multistaged_training_step(global_iter, model, phase, device, optimizer, loss
             for minibatch in batch:
                 minibatch = {e: minibatch[e].to(device) for e in minibatch}
                 y = model(minibatch)
-                
-                # Output Global
-                embeddings_mb = y['global']
-                minibatch_size = embeddings_mb.shape[0]
-                
-                if embeddings_grad is not None:
-                    retain_graph = PARAMS.clustering_head
-                    embeddings_mb.backward(gradient=embeddings_grad[i: i+minibatch_size], retain_graph=retain_graph)
-
-                if PARAMS.clustering_head:
-                    clustering_mb = y['clustering_emb'] # y['clustering_emb']
-                    
-                    if clustering_grad is not None:
-                        clustering_mb.backward(gradient=clustering_grad[i: i+minibatch_size], retain_graph=PARAMS.clustering_head)
-
+                embeddings = y['global']
+                minibatch_size = len(embeddings)
+                # Compute gradients of network params w.r.t. the loss using the chain rule (using the
+                # gradient of the loss w.r.t. embeddings stored in embeddings_grad)
+                # By default gradients are accumulated
+                embeddings.backward(gradient=embeddings_grad[i: i+minibatch_size])
                 i += minibatch_size
 
             optimizer.step()
