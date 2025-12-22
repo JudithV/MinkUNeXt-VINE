@@ -209,32 +209,6 @@ class MinkUNeXt(ResNetBase):
                                        self.LAYERS[4])
         self.convtr5p8s2 = ME.MinkowskiConvolutionTranspose(
             self.inplanes, self.PLANES[5], kernel_size=2, stride=2, dimension=D)
-        self.bntr5 = ME.MinkowskiBatchNorm(self.PLANES[5])
-
-        self.inplanes = self.PLANES[5] + self.PLANES[1] * self.BLOCK.expansion
-        self.block6 = self._make_layer(self.BLOCK, self.PLANES[5],
-                                       self.LAYERS[5])
-        self.convtr6p4s2 = ME.MinkowskiConvolutionTranspose(
-            self.inplanes, self.PLANES[6], kernel_size=2, stride=2, dimension=D)
-        self.bntr6 = ME.MinkowskiBatchNorm(self.PLANES[6])
-
-        self.inplanes = self.PLANES[6] + self.PLANES[0] * self.BLOCK.expansion
-        self.block7 = self._make_layer(self.BLOCK, self.PLANES[6],
-                                       self.LAYERS[6])
-        self.convtr7p2s2 = ME.MinkowskiConvolutionTranspose(
-            self.inplanes, self.PLANES[7], kernel_size=2, stride=2, dimension=D)
-        self.bntr7 = ME.MinkowskiBatchNorm(self.PLANES[7])
-
-        self.inplanes = self.PLANES[7] + self.INIT_DIM
-        self.block8 = self._make_layer(self.BLOCK, self.PLANES[7],
-                                       self.LAYERS[7])
-       
-        self.final = ME.MinkowskiConvolution(
-            self.PLANES[7],
-            out_channels,
-            kernel_size=1,
-            bias=True,
-            dimension=D)   
 
         self.relu = ME.MinkowskiReLU(inplace=True)
         self.GeM_pool = GeM(input_dim=out_channels)
@@ -276,23 +250,6 @@ class MinkUNeXt(ResNetBase):
 
         # tensor_stride=4
         out = self.convtr5p8s2(out)
-        trasposed_features2 = out
-        out = self.bntr5(out)
-        out = self.relu(out)
-
-        out = ME.cat(out, out_b2p4)
-
-        out = self.block6(out)
-
-        # tensor_stride=2
-        out = self.convtr6p4s2(out)
-        out = self.bntr6(out)
-        out = self.relu(out)
-
-        out = ME.cat(out, out_b1p2)
-        out = self.block7(out)
-
-        out = self.final(out)
         descriptor = self.GeM_pool(out)
         return {'global': descriptor}
 
