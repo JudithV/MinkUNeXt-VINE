@@ -43,9 +43,6 @@ pos_margin: 0
 neg_margin: 1
 
 normalize_embeddings: False
-clustering_head: False
-clustering_importance: 0.5
-cluster_batch_size: 2048
 
 protocol: 'blt'
 baseline:
