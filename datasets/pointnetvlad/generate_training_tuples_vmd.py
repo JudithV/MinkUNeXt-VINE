@@ -28,12 +28,11 @@ from datasets.pointnetvlad.generate_test_sets import P26, P27, P28, P29, check_i
 # Test set boundaries
 P = [P26, P27, P28, P29]
 
-RUNS_FOLDER = "vmd/"
+RUNS_FOLDER = "MinkUNeXt++/vmd_fused/"
 FILENAME_GPS = "gps.csv"
 FILENAME = "data.csv"
-POINTCLOUD_FOLS = "pointcloud/lidar3d_1/"
+POINTCLOUD_FOLS = "pointcloud/" # "pointcloud/lidar3d_1/"
 USE_GPS = True
-USE_SEGMENT = False
 
 def plot_split_for_anchor(df_centroids, queries, filename, anchor_ndx=0,
                           delta_pos_north=2.5, delta_pos_east=8, 
@@ -96,8 +95,6 @@ def construct_query_dict(df_centroids, base_path, filename,
     queries = {}
     tree = KDTree(df_centroids[['northing', 'easting']])
     coords = df_centroids[['northing', 'easting']].values
-    type_run = df_centroids['type'].values
-    segments = df_centroids['segment'].values
     ind_nn = tree.query_radius(df_centroids[['northing', 'easting']], r=7) # r=7
     ind_r = tree.query_radius(df_centroids[['northing', 'easting']], r=15) # r=15
     # ORIGINAL:
@@ -109,30 +106,14 @@ def construct_query_dict(df_centroids, base_path, filename,
         assert os.path.splitext(scan_filename)[1] == '.csv', f"Expected .csv file: {scan_filename}"
         timestamp = int(os.path.splitext(scan_filename)[0])
 
-        if USE_SEGMENT:
-            # Anchor conditions
-            anchor_type = type_run[anchor_ndx]
-            anchor_segment = segments[anchor_ndx]
+        # Conventional positives and non-negatives division by distance
+        positives = ind_nn[anchor_ndx]
+        non_negatives = ind_r[anchor_ndx]
 
-            # Positives
-            positives = ind_nn[anchor_ndx]
-            positives = positives[positives != anchor_ndx]  # excluir el propio ancla
-            positives = [p for p in positives if type_run[p] == anchor_type and segments[p] == anchor_segment]
-            positives = np.sort(positives)
-
-            # Non-negatives
-            non_negatives = ind_r[anchor_ndx]
-            non_negatives = [n for n in non_negatives if type_run[n] == anchor_type and segments[n] == anchor_segment]
-            non_negatives = np.sort(non_negatives)
-        else:
-            # Conventional positives and non-negatives division by distance
-            positives = ind_nn[anchor_ndx]
-            non_negatives = ind_r[anchor_ndx]
-
-            positives = positives[positives != anchor_ndx]
-            # Sort ascending order
-            positives = np.sort(positives)
-            non_negatives = np.sort(non_negatives)
+        positives = positives[positives != anchor_ndx]
+        # Sort ascending order
+        positives = np.sort(positives)
+        non_negatives = np.sort(non_negatives)
 
         # Tuple(id: int, timestamp: int, rel_scan_filepath: str, positives: List[int], non_negatives: List[int])
         queries[anchor_ndx] = TrainingTuple(id=anchor_ndx, timestamp=timestamp, rel_scan_filepath=query,
@@ -270,7 +251,7 @@ if __name__ == '__main__':
     for folder in tqdm.tqdm(folders):
         if "run2_02_p" in folder: # "lidar3d_1" in POINTCLOUD_FOLS and //  or "run3" not in folder
             continue
-        if "10" not in folder: # run3
+        if "01" not in folder: # run3
             continue
         files, scantimes_pcds, ref_times, scan_times, utm_pos = [], [], [], [], []
         if os.path.exists(base_path+RUNS_FOLDER+"pergola/"+folder):
@@ -326,7 +307,7 @@ if __name__ == '__main__':
         df_triplet = pd.DataFrame(columns=['file', 'northing', 'easting'])
         if "run2_03_p" in folder: # "lidar3d_1" in POINTCLOUD_FOLS and //  or "run3" not in folder
             continue
-        if "10" not in folder: # run3: Current experiments considering only loop-closure enriched scenario.
+        if "01" not in folder: # run3: Current experiments considering only loop-closure enriched scenario.
             continue
         if os.path.exists(RUNS_FOLDER + "pergola/" + folder):
             run_path = os.path.join(RUNS_FOLDER,"pergola",folder)
@@ -362,8 +343,8 @@ if __name__ == '__main__':
     print("Vineyard count in test: ", df_test["file"].str.count("vineyard").sum())
 
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    train_queries = construct_query_dict(df_train, base_path+"/train_test_sets/vmd", "training_queries_vmd_sept_sampled_Livox.pickle")
+    train_queries = construct_query_dict(df_train, base_path+ "MinkUNeXt-VINE/"+"/train_test_sets/vmd", "training_queries_vmd_feb_runs_fused.pickle")
     #plot_split_for_anchor(df_train, train_queries, "scans_train_set.png")
-    test_queries = construct_query_dict(df_test, base_path+"/train_test_sets/vmd", "test_queries_vmd_sept_sampled_Livox.pickle")
+    test_queries = construct_query_dict(df_test, base_path+ "MinkUNeXt-VINE/"+"/train_test_sets/vmd", "test_queries_vmd_feb_runs_fused.pickle")
     #plot_split_for_anchor(df_test, test_queries, "scans_test_set.png")"""
 
