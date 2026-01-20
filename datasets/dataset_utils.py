@@ -67,8 +67,6 @@ def make_collate_fn(dataset: TrainingDataset, quantizer,batch_split_size=None):
         if PARAMS.use_intensity:
             clouds = [e[0]['cloud'] for e in data_list]
             reflecs = [e[0]['reflec'] for e in data_list]
-            if PARAMS.clustering_head:
-                segments = [e[0]['labels'] for e in data_list]
             labels = [e[1] for e in data_list]
             if dataset.set_transform is not None:
                 lens_c = [len(cloud) for cloud in clouds]

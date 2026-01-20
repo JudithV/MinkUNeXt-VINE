@@ -21,11 +21,11 @@ import random
 
 from datasets.base_datasets import TrainingTuple
 # Import test set boundaries
-from datasets.pointnetvlad.generate_test_sets import P16, P17, P18, P19, P20, check_in_test_set
+from datasets.pointnetvlad.generate_test_sets import P16, P16_0, P16_1, P16_2, P17, P18, check_in_test_set
 
 # Test set boundaries
-P_K = [P16, P17, P18]
-P_R = [P19, P20]
+P_K = [P16_0, P16_1, P16_2]
+P_R = [P17, P18]
 
 RUNS_FOLDER = "blt/"
 FILENAME = "data.csv"
@@ -227,23 +227,6 @@ def process_dataset(base_path, RUNS_FOLDER, folder, site):
         #print(scan_data)
         _, utm_pos, _ = get_closest_data(gps_data, scan_times, gps_mode='utm') #gps_data, scan_times
         ind = 0
-        """print("\n=== DEPURACIÓN DE SCAN TIMES ===")
-        print(f"Total ficheros en carpeta: {len(files)}")
-        print(f"Total scan_times devueltos: {len(scan_times)}")
-
-        # 1. Mira algunos valores de scan_times
-        print("Ejemplo scan_times:", scan_times[:20])
-
-        # 2. Mira algunos nombres reales de ficheros
-        print("Ejemplo files:", files[:20])
-
-        # 3. Comprueba cuántos scan_times están realmente en los nombres de ficheros
-        scan_times_str = [str(scan) + ".csv" for scan in scan_times]
-        coinciden = [f for f in scan_times_str if f in files]
-        print(f"Coincidencias exactas: {len(coinciden)} / {len(scan_times)}")
-
-        # 4. Revisa duplicados en scan_times
-        print(f"Duplicados en scan_times: {len(scan_times) - len(set(scan_times))}")"""
 
         for ts in scan_times: # ts in scan_times
             escritor_csv.writerow([ts, utm_pos[ind][0], utm_pos[ind][1], segment_id[ind]])
@@ -295,8 +278,8 @@ if __name__ == '__main__':
     df_train = pd.DataFrame(columns=['file', 'northing', 'easting'])
     df_test = pd.DataFrame(columns=['file', 'northing', 'easting'])
     for folder in tqdm.tqdm(folders):
-        if "2022-09-" not in folder and "2022-10-" not in folder:
-            continue
+        """if "2022-09-" not in folder and "2022-10-" not in folder:
+            continue"""
         process, scan_times = process_dataset(base_path, RUNS_FOLDER, folder, "ktima")
         run_path = os.path.join(base_path, RUNS_FOLDER, "ktima", folder) + "/"
         files = os.listdir(os.path.join(base_path,RUNS_FOLDER, "ktima", folder, POINTCLOUD_FOLS))
@@ -318,8 +301,8 @@ if __name__ == '__main__':
                 print(f"Error deleting {f}: {e}")"""
     
     for folder in tqdm.tqdm(folders):
-        if "2022-09-" not in folder and "2022-10-" not in folder:
-            continue
+        """if "2022-09-" not in folder and "2022-10-" not in folder:
+            continue"""
         if os.path.exists(RUNS_FOLDER + "ktima/" + folder):
             df_train, df_test = process_locations(base_path, RUNS_FOLDER, folder, "ktima", P_K, df_train, df_test)
         elif os.path.exists(RUNS_FOLDER + "riseholme/" + folder):
@@ -328,8 +311,8 @@ if __name__ == '__main__':
     print("Number of training submaps: " + str(len(df_train['file'])))
     print("Number of non-disjoint test submaps: " + str(len(df_test['file'])))
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    #construct_query_dict(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D_segment.pickle") # ind_nn_r=5
-    #construct_query_dict(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D_segment.pickle") # ind_nn_r=5
+    construct_query_dict(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D_last.pickle") # ind_nn_r=5
+    construct_query_dict(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D_last.pickle") # ind_nn_r=5
 
-    construct_query_dict_pnv(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D_PNV_autumn.pickle") # ind_nn_r=5
-    construct_query_dict_pnv(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D_PNV_autumn.pickle")
+    #construct_query_dict_pnv(df_train, base_path+"train_test_sets/blt", "training_queries_blt_Ktima_3D_PNV.pickle") # ind_nn_r=5
+    #construct_query_dict_pnv(df_test, base_path+"train_test_sets/blt", "test_queries_blt_Ktima_3D_PNV.pickle")

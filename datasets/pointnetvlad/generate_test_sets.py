@@ -15,19 +15,20 @@ parent_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(parent_dir)
 from config import PARAMS
 
-# For training and test data splits, BLT = 13, VMD = 23
+# For training and test data splits, BLT = 7, VMD = 23
 X_WIDTH = 13
 Y_WIDTH = 13
 
 # BLT
 #KTIMA
-P16 = [663182.204586871, 4479512.96605084]
-P17 = [663141.686467221, 4479464.873340834]
-P18 = [663116.3699656122, 4479498.777999125]
+P16 = [663167.9533610006, 4479491.744801206]
+P16_0 = [663182.2045892889, 4479512.9661655035]
+P16_1 = [663141.6864696341, 4479464.87345549]
+P16_2 = [663116.3699680234, 4479498.778113787]
 
 #RISEHOLME
-P19 = [665082.1563399071, 5904963.1919269]
-P20 = [665100.1582773875, 5904972.71202409]
+P17 = [665082.1563399071, 5904963.1919269]
+P18 = [665100.1582773875, 5904972.71202409]
 
 # VMD
 P26 = [405156.7520412804, 5025041.790304738]
@@ -42,7 +43,7 @@ P29 = [405179.49875482655, 5025142.53828079]
 P30 = [457190.21529351856, 5428835.785329838]
 P31 = [457323.8517238996, 5428045.37636426]
 
-P_DICT = {"blt-ktima": [P16, P17, P18], "blt-riseholme": [P19, P20], "vmd": [P26, P27, P28, P29]}
+P_DICT = {"blt-ktima": [P16_0, P16_1, P16_2], "blt-riseholme": [P17, P18], "vmd": [P26, P27, P28, P29]}
 
 
 def check_in_test_set(northing, easting, points):
@@ -166,8 +167,8 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
                 intersection = list(set(index_list) & set(test_sets[j].keys()))
                 test_sets[j][key][i] = intersection
 
-    output_to_file(database_sets, base_path+"train_test_sets/"+PARAMS.protocol, "minkloc_" + output_name + '_evaluation_database_PNV_autumn.pickle')
-    output_to_file(test_sets, base_path+"train_test_sets/"+PARAMS.protocol, "minkloc_" + output_name + '_evaluation_query_PNV_autumn.pickle')
+    output_to_file(database_sets, base_path+"train_test_sets/"+PARAMS.protocol, "minkloc_" + output_name + '_evaluation_database_last.pickle')
+    output_to_file(test_sets, base_path+"train_test_sets/"+PARAMS.protocol, "minkloc_" + output_name + '_evaluation_query_last.pickle')
 
 
 if __name__ == '__main__':
@@ -181,8 +182,8 @@ if __name__ == '__main__':
     # Process the two different scenarios within the dataset
     all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "ktima/"))) #+ sorted(os.listdir(os.path.join(base_path, runs_folder + "riseholme/")))
     for folder in all_folders:
-        if "2022-09-" not in folder and "2022-10-" not in folder:
-            continue
+        """if "2022-09-" not in folder and "2022-10-" not in folder:
+            continue"""
         if os.path.exists(os.path.join(base_path, runs_folder + "ktima/" + folder)):
             folders.append("ktima/"+folder)
     

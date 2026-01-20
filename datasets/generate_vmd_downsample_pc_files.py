@@ -11,8 +11,8 @@ from spherical_coords import SphericalCoords
 from config.config import PARAMS
 
 # Ruta al dataset original y carpeta destino
-input_folder = "/media/arvc/HDD4TB1/Judith/MinkUNeXt-main/vmd/vineyard"
-output_folder = "/media/arvc/HDD4TB1/Judith/MinkUNeXt-main/vmd_downsample/vineyard"
+input_folder = "/media/arvc/HDD4TB/Judith/MinkUNeXt-main/vmd/vineyard"
+output_folder = "/media/arvc/HDD4TB/Judith/MinkUNeXt-main/vmd_downsample/vineyard"
 
 # Crear la carpeta destino si no existe
 os.makedirs(output_folder, exist_ok=True)
@@ -61,7 +61,7 @@ def write_bin(file_path, pcd):
 
 def reduce_resolution(points, intensity):
     intensity = correct_intensity(points, intensity)
-    pcd = o3d.geometry.PointCloud()
+    """pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
 
     pcd = pcd.voxel_down_sample(voxel_size=0.01)
@@ -74,11 +74,11 @@ def reduce_resolution(points, intensity):
     idx = np.where((r2 < PARAMS.max_distance ** 2))
     points = points[idx]
     intensity = intensity[idx]
-    points = np.concatenate((points, intensity[:, np.newaxis]), axis=1)
+    points = np.concatenate((points, intensity[:, np.newaxis]), axis=1)"""
     #points = SphericalCoords.to_spherical(points, "vmd")
-    intensity = exposure.equalize_hist(points[:, 3])
+    intensity = exposure.equalize_hist(intensity)
 
-    return points[:, :3], intensity
+    return points, intensity # points[:, :3]
 
 if __name__ == '__main__':
     for folder in os.listdir(input_folder):

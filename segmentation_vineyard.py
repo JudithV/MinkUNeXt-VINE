@@ -1,3 +1,7 @@
+# Miguel Hernández University of Elche
+# Institute for Engineering Research of Elche (I3E)
+# Automation, Robotics and Computer Vision lab (ARCV)
+# Author: Judith Vilella Cantos
 import pandas as pd
 import numpy as np
 from scipy.spatial import procrustes
@@ -19,60 +23,30 @@ def distancia_punto_a_segmento(px, py, x1, y1, x2, y2):
     closest = B + t * AB
     return np.linalg.norm(A - closest)
 
-# Cargar CSV y convertir coordenadas
+# Load ground truth
 df = pd.read_csv('blt/ktima/2022-04-06-11-02-34/robot0/gps0/data.csv') # vmd/vineyard/run3_10_v/gps.csv
 utm_coords = np.array([utm.from_latlon(lon, lat)[:2] for lat, lon in zip(df['latitude'], df['longitude'])])
 x_coords, y_coords = utm_coords[:, 0], utm_coords[:, 1]
 
-# PCA para alinear el viñedo
+# PCA for vineyard alignment
 pca = PCA(n_components=2)
 coords_pca = pca.fit_transform(utm_coords)
 main_axis = coords_pca[:, 0]  # eje longitudinal del viñedo (a lo largo de las filas)
 perp_axis = coords_pca[:, 1]  # eje transversal (a través de las filas)
 
-"""model = RANSACRegressor().fit(x_coords.reshape(-1,1), y_coords)
-a = model.estimator_.coef_[0]
-
-# Dirección principal del viñedo
-direction = np.array([1, a])
-direction /= np.linalg.norm(direction)
-
-# Eje perpendicular
-perp = np.array([-direction[1], direction[0]])
-
-# Proyección de puntos al eje perpendicular
-perp_axis = x_coords * perp[0] + y_coords * perp[1]
-main_axis = x_coords * direction[0] + y_coords * direction[1]"""
-
-# Definir extremos en el eje principal (no en y_coords)
+# Define extremes
 main_min, main_max = np.percentile(main_axis, [2, 98])
-margin = 5.0  # metros (ajustable dependiendo del viñedo)
+margin = 5.0  # meters
 
 extremo_inferior = main_axis < (main_min + margin)
 extremo_superior = main_axis > (main_max - margin)
 interior = ~(extremo_inferior | extremo_superior)
 
-# Clustering de filas solo en puntos interiores (usando el eje transversal)
-k = 5 # Vineyard: run1 10, run2 8, run3 3 / Pergola (all): 4
-
-# Using Kmeans...
-fila_axis = perp_axis[interior].reshape(-1, 1)
-kmeans = KMeans(n_clusters=k).fit(fila_axis)
-fila_ids = kmeans.labels_
-
-# Ordenar etiquetas de fila según posición en eje perpendicular
-centroids = kmeans.cluster_centers_.flatten()
-sorted_idx = np.argsort(centroids)
-label_map = {old: new+1 for new, old in enumerate(sorted_idx)}  # +1 para dejar 0 a extremos
-
-# Aplicar el mapeo
-fila_ids_mapeados = np.array([label_map[label] if label in label_map else 0 for label in fila_ids])
-
-# Asignar etiquetas a todos los puntos
+# Asign labels to all timestamps
 segment_labels = np.zeros(len(x_coords), dtype=int)
 segment_labels[extremo_inferior] = 0
-segment_labels[extremo_superior] = max(label_map.values()) + 1  # último número +1
-segment_labels[interior] = fila_ids_mapeados
+segment_labels[extremo_superior] = 1
+segment_labels[interior] = 2
 
 # Manual segmentation (vineyards)
 
@@ -112,6 +86,6 @@ for i, (px, py) in enumerate(zip(main_axis[interior], perp_axis[interior])):
     label_mas_cercano = np.argmin(distancias) + 1  # etiquetas 1..N
     segment_labels[interior_indices[i]] = label_mas_cercano
 
-
-df['segment'], df['type'] = segment_labels, "V"
+# Save labeled data
+df['segment'], df['type'] = segment_labels, "V" # Type "V" for trellis, "P" for pergola
 df.to_csv('blt/ktima/2022-04-06-11-02-34/robot0/gps0/data.csv', index=False) # vmd/vineyard/run3_10_v/gps.csv
