@@ -1,4 +1,4 @@
-dataset_folder: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main/' # '/home/arvc/Judith/MinkUNeXt-main'
+dataset_folder: '/media/arvc/HDD4TB/Judith/' # '/home/arvc/Judith/MinkUNeXt-main'
 cuda_device: 'cuda:1' # 'cuda:0' or 'cuda:1'
 
 patience: 40
@@ -19,8 +19,6 @@ normalize: True
 use_downsampled: False
 min_distance: 2
 max_distance: 60 # 60
-
-use_2D: False # BLT 2D LiDAR
 
 optimizer: 'Adam' # Adam or AdamW
 initial_lr: 0.001
@@ -93,8 +91,8 @@ vmd:
   epochs: 200 # 75
   scheduler_milestones: [75, 150] # [25, 50]
   num_points: 23000
-  train_file: train_test_sets/vmd/training_queries_vmd_feb_runs_Livox.pickle # training_queries_vmd_feb-sept_zones_VELO.pickle
-  val_file: train_test_sets/vmd/test_queries_vmd_feb_runs_Livox.pickle # test_queries_vmd_feb-sept_zones_VELO.pickle
+  train_file: train_test_sets/vmd/training_queries_vmd_feb_runs_fused.pickle # training_queries_vmd_feb-sept_zones_VELO.pickle
+  val_file: train_test_sets/vmd/test_queries_vmd_feb_runs_fused.pickle # test_queries_vmd_feb-sept_zones_VELO.pickle
 
 print:
   model_info: True
