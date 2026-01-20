@@ -14,8 +14,7 @@ import cv2
 import matplotlib.pyplot as plt
 from skimage import exposure
 import torch
-from config import PARAMS 
-from datasets.spherical_coords import SphericalCoords
+from config import PARAMS
 
 from datasets.base_datasets import PointCloudLoader
 

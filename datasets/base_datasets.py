@@ -67,11 +67,7 @@ class TrainingDataset(Dataset):
         # Load point cloud and apply transform
         file_pathname = os.path.join(self.dataset_path, self.queries[ndx].rel_scan_filepath)
         query_pc = self.pc_loader(file_pathname)
-        # query['cloud'] = self.pc_loader(file_pathname)
-        # query['intensity'] = self.intensity_loader(file_pathname)
         query_pc['cloud'] = torch.tensor(query_pc['cloud'], dtype=torch.float)
-        query_pc['reflec'] = torch.tensor(query_pc['reflec'], dtype=torch.float)
-        query_pc['reflec'] = query_pc['reflec'].reshape([-1,1])
         if self.transform is not None:
             query_pc['cloud'] = self.transform(query_pc['cloud'])
         
@@ -168,11 +164,3 @@ class PointCloudLoader:
     def read_pc(self, device, file_pathname: str) -> np.ndarray:
         # Reads the point cloud without pre-processing
         raise NotImplementedError("read_pc must be overloaded in an inheriting class")
-    
-    def read_reflec(self, file_pathname: str):
-        # Reads the point cloud reflectivity value
-        raise NotImplementedError("read_reflec must be overloaded in an inheriting class")
-    
-    def read_intensity(self, file_pathname: str):
-        # Reads the point cloud reflectivity value
-        raise NotImplementedError("read_intensity must be overloaded in an inheriting class")
