@@ -15,9 +15,9 @@ parent_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(parent_dir)
 from config import PARAMS
 
-# For training and test data splits, BLT = 7, VMD = 23
-X_WIDTH = 13
-Y_WIDTH = 13
+# For training and test data splits, BLT = 13, VMD = 23
+X_WIDTH = 23
+Y_WIDTH = 23
 
 # BLT
 #KTIMA
@@ -38,10 +38,6 @@ P28 = [405154.7637688267, 5025158.401943873]
 P27 = [405104.76748520625, 5025096.011784253]
 P29 = [405179.49875482655, 5025142.53828079]
 #P28 = [405178.6821447582, 5025143.267948912]
-
-# KITTI
-P30 = [457190.21529351856, 5428835.785329838]
-P31 = [457323.8517238996, 5428045.37636426]
 
 P_DICT = {"blt-ktima": [P16_0, P16_1, P16_2], "blt-riseholme": [P17, P18], "vmd": [P26, P27, P28, P29]}
 
@@ -98,10 +94,10 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
             if output_name == "vmd":
                 """if check_in_test_set(row['easting'], row['northing'], p):
                     df_test = df_test.append(row, ignore_index=True)"""
-                if i % 2 == 0:
-                    df_test = df_test.append(row, ignore_index=True)
-                """if "run2" in folder:
+                """if i % 2 == 0:
                     df_test = df_test.append(row, ignore_index=True)"""
+                if "run2" in folder:
+                    df_test = df_test.append(row, ignore_index=True)
             else:
                 if check_in_test_set(row['northing'], row['easting'], p):
                     df_test = df_test.append(row, ignore_index=True)
@@ -136,10 +132,10 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
             if output_name == "vmd":
                 """if check_in_test_set(row['easting'], row['northing'], p):
                     test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}"""
-                if i % 2 == 0:
-                    test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}
-                """if "run2" in folder:
+                """if i % 2 == 0:
                     test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}"""
+                if "run2" in folder:
+                    test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}
             else:
                 if check_in_test_set(row['northing'], row['easting'], p):
                     test[len(test.keys())] = {'query': row['file'], 'northing': row['northing'], 'easting': row['easting']}
@@ -156,8 +152,8 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
     for i in range(len(database_sets)):
         tree = database_trees[i]
         for j in range(len(test_sets)):
-            if i == j:
-                continue
+            """if i == j:
+                continue"""
             for key in range(len(test_sets[j].keys())):
                 coor = np.array([[test_sets[j][key]["northing"], test_sets[j][key]["easting"]]])
                 index = tree.query_radius(coor, r=5) 
@@ -167,8 +163,8 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
                 intersection = list(set(index_list) & set(test_sets[j].keys()))
                 test_sets[j][key][i] = intersection
 
-    output_to_file(database_sets, base_path+"train_test_sets/"+PARAMS.protocol, "minkloc_" + output_name + '_evaluation_database_last.pickle')
-    output_to_file(test_sets, base_path+"train_test_sets/"+PARAMS.protocol, "minkloc_" + output_name + '_evaluation_query_last.pickle')
+    output_to_file(database_sets, base_path+"train_test_sets/"+PARAMS.protocol, "minkloc_" + output_name + '_evaluation_database.pickle')
+    output_to_file(test_sets, base_path+"train_test_sets/"+PARAMS.protocol, "minkloc_" + output_name + '_evaluation_query.pickle')
 
 
 if __name__ == '__main__':
@@ -176,19 +172,17 @@ if __name__ == '__main__':
     base_path = PARAMS.dataset_folder
                                       
     # For BLT
-    folders = []
+    """folders = []
     runs_folder = "blt/"
     
     # Process the two different scenarios within the dataset
     all_folders = sorted(os.listdir(os.path.join(base_path, runs_folder + "ktima/"))) #+ sorted(os.listdir(os.path.join(base_path, runs_folder + "riseholme/")))
     for folder in all_folders:
-        """if "2022-09-" not in folder and "2022-10-" not in folder:
-            continue"""
         if os.path.exists(os.path.join(base_path, runs_folder + "ktima/" + folder)):
             folders.append("ktima/"+folder)
     
     construct_query_and_database_sets(base_path, runs_folder, folders, "/robot0/lidar_3d/data/",
-                                      "data.csv", P_DICT["blt-ktima"], "blt")
+                                      "data.csv", P_DICT["blt-ktima"], "blt")"""
     """folders = []
     for folder in all_folders:
             if folder != "session0" and folder != "session1" and os.path.exists(os.path.join(base_path, runs_folder + "riseholme/" + folder)):
@@ -198,7 +192,7 @@ if __name__ == '__main__':
     
 
     # For VMD (TEMPO-VINE)
-    """folders = []
+    folders = []
     runs_folder = "vmd/"
     
     # To process the two different scenarios within the dataset use the following line
@@ -215,4 +209,4 @@ if __name__ == '__main__':
             folders.append("vineyard/"+folder)
     
     construct_query_and_database_sets(base_path, runs_folder, folders, "/pointcloud/lidar3d_1/",
-                                      "data.csv", P_DICT["vmd"], "vmd")"""
+                                      "data.csv", P_DICT["vmd"], "vmd")

@@ -28,7 +28,7 @@ from datasets.pointnetvlad.generate_test_sets import P26, P27, P28, P29, check_i
 # Test set boundaries
 P = [P26, P27, P28, P29]
 
-RUNS_FOLDER = "MinkUNeXt++/vmd_fused/"
+RUNS_FOLDER = "vmd/"
 FILENAME_GPS = "gps.csv"
 FILENAME = "data.csv"
 POINTCLOUD_FOLS = "pointcloud/" # "pointcloud/lidar3d_1/"
@@ -343,8 +343,8 @@ if __name__ == '__main__':
     print("Vineyard count in test: ", df_test["file"].str.count("vineyard").sum())
 
     # ind_nn_r is a threshold for positive elements - 10 is in original PointNetVLAD code for refined dataset
-    train_queries = construct_query_dict(df_train, base_path+ "MinkUNeXt-VINE/"+"/train_test_sets/vmd", "training_queries_vmd_feb_runs_fused.pickle")
+    train_queries = construct_query_dict(df_train, base_path+"/train_test_sets/vmd", "training_queries_vmd_feb_runs_fused.pickle")
     #plot_split_for_anchor(df_train, train_queries, "scans_train_set.png")
-    test_queries = construct_query_dict(df_test, base_path+ "MinkUNeXt-VINE/"+"/train_test_sets/vmd", "test_queries_vmd_feb_runs_fused.pickle")
+    test_queries = construct_query_dict(df_test, base_path+"/train_test_sets/vmd", "test_queries_vmd_feb_runs_fused.pickle")
     #plot_split_for_anchor(df_test, test_queries, "scans_test_set.png")"""
 

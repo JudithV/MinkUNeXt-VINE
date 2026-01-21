@@ -1,4 +1,4 @@
-dataset_folder: '/media/arvc/HDD4TB/Judith/' # '/home/arvc/Judith/MinkUNeXt-main'
+dataset_folder: '/media/arvc/HDD4TB/Judith/MinkUNeXt-main' # '/home/arvc/Judith/MinkUNeXt-main'
 cuda_device: 'cuda:1' # 'cuda:0' or 'cuda:1'
 
 patience: 40
